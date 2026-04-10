@@ -24,18 +24,18 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-full rounded-lg bg-white lg:w-56">
+    <aside className="w-full rounded-xl border border-slate-200 bg-white shadow-sm lg:w-56 lg:self-start">
       {/* Cabeçalho da Sidebar - simplificado */}
-      <div className="border-b border-slate-200 bg-gradient-to-r from-[#1b3383] to-[#2a4ba6] px-3 py-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-white">
+      <div className="border-b border-slate-200 bg-gradient-to-r from-[#1b3383] to-[#2a4ba6] px-3 py-2.5">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-white">
           EmpresasSC
         </p>
       </div>
 
-      {/* Menu de navegação com melhor contraste */}
+      {/* Menu de navegacao com melhor contraste */}
       <nav
-        className="flex flex-col gap-0.5 overflow-x-auto p-2 lg:overflow-x-visible"
-        aria-label="Navegação principal"
+        className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:overflow-x-visible"
+        aria-label="Navegacao principal"
       >
         {ITEMS.map((item) => {
           const Icon = item.icon;
@@ -46,12 +46,12 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={`
-                group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium
+                group inline-flex min-w-max items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium
                 transition-all duration-200
                 ${
                   active
                     ? "bg-[#1b3383] text-white shadow-sm"
-                    : "text-slate-700 hover:bg-slate-100"
+                    : "text-slate-700 hover:bg-[#f0f3fa]"
                 }
               `}
               aria-current={active ? "page" : undefined}
@@ -61,7 +61,7 @@ export function Sidebar() {
                   active ? "scale-110" : "group-hover:scale-105"
                 }`}
               />
-              <span className="flex-1 truncate">{item.label}</span>
+              <span className="flex-1 whitespace-nowrap">{item.label}</span>
               {active && (
                 <div className="h-2 w-2 flex-shrink-0 rounded-full bg-white"></div>
               )}
@@ -70,7 +70,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Rodapé removido para ganhar espaço */}
+      {/* Rodape removido para ganhar espaco */}
     </aside>
   );
 }

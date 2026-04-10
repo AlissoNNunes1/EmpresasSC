@@ -134,6 +134,7 @@ h4 { font-size: 1.125rem; font-weight: 600; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   font-weight: 600;
@@ -153,6 +154,7 @@ h4 { font-size: 1.125rem; font-weight: 600; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   font-weight: 600;
@@ -212,6 +214,7 @@ h4 { font-size: 1.125rem; font-weight: 600; }
 .kpi-icon-success { background-color: #dcfce7; color: var(--success); }
 .kpi-icon-warning { background-color: #fef3c7; color: var(--warning); }
 .kpi-icon-error { background-color: #fee2e2; color: var(--error); }
+.kpi-icon-info { background-color: #e0f2fe; color: var(--info); }
 
 /*   __  ____ ____ _  _ 
  / _\/ ___) ___) )( \

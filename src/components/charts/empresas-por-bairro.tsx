@@ -23,6 +23,14 @@ const COLORS = [
 ];
 
 export function EmpresasPorBairro({ data }: { data: BairroData[] }) {
+  if (!data.length) {
+    return (
+      <div className="flex h-80 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm text-slate-600">
+        Ainda nao ha dados de bairro para exibir.
+      </div>
+    );
+  }
+
   // Seleciona top 10 bairros e ordena por valor
   const chartData = [...data]
     .sort((a, b) => b.totalEmpresas - a.totalEmpresas)
@@ -72,7 +80,7 @@ export function EmpresasPorBairro({ data }: { data: BairroData[] }) {
         <BarChart
           data={chartData}
           layout="vertical"
-          margin={{ left: 100, right: 60, top: 8, bottom: 8 }}
+          margin={{ left: 92, right: 56, top: 6, bottom: 6 }}
         >
           <CartesianGrid
             strokeDasharray="3 3"
@@ -94,6 +102,7 @@ export function EmpresasPorBairro({ data }: { data: BairroData[] }) {
             radius={[0, 8, 8, 0]}
             animationDuration={800}
             label={renderCustomLabel}
+            maxBarSize={38}
           />
         </BarChart>
       </ResponsiveContainer>

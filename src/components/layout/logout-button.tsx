@@ -6,7 +6,13 @@ import { Button } from "@/components/ui/button";
 
 export function LogoutButton() {
   return (
-    <Button variant="outline" onClick={() => signOut({ callbackUrl: "/login" })} className="gap-2">
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => signOut({ callbackUrl: "/login" })}
+      className="min-w-[88px]"
+      aria-label="Encerrar sessao"
+    >
       <LogOut className="h-4 w-4" />
       Sair
     </Button>
