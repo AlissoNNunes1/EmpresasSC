@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+:root {
+  /* Cor institucional e paleta derivada */
+  --primary: #1b3383;
+  --primary-dark: #0f1f4d;
+  --primary-light: #2a4ba6;
+  --primary-lighter: #4a6ec9;
+  --primary-50: #f0f3fa;
+  
+  /* Cores de suporte */
+  --accent: #0f766e;
+  --accent-light: #48a9a0;
+  --success: #059669;
+  --warning: #d97706;
+  --error: #dc2626;
+  
+  /* Fundos e superfícies */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-2: #e2e8f0;
+  --surface-3: #cbd5e1;
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-accent: var(--accent);
+  --color-accent-light: var(--accent-light);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+}
+
+* {
+  border-color: var(--surface-2);
+}
+
+body {
+  background:
+    radial-gradient(circle at top right, rgba(27, 51, 131, 0.15), transparent 50%),
+    radial-gradient(circle at bottom left, rgba(15, 118, 110, 0.12), transparent 50%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading), serif;
+  color: var(--primary-dark);
+}
+
+h1 { font-size: 2.25rem; font-weight: 700; line-height: 1.2; }
+h2 { font-size: 1.875rem; font-weight: 700; line-height: 1.3; }
+h3 { font-size: 1.5rem; font-weight: 600; line-height: 1.4; }
+h4 { font-size: 1.125rem; font-weight: 600; }
+
+/* Utilitários para hierarquia visual */
+.badge-primary {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  background-color: var(--primary);
+}
+
+.badge-success {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  background-color: var(--success);
+}
+
+.badge-warning {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  background-color: var(--warning);
+}
+
+.badge-error {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  background-color: var(--error);
+}
+
+/* Cartões com shadow melhorado */
+.card-elevated {
+  border-radius: 0.5rem;
+  background-color: white;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+}
+
+.card-elevated:hover {
+  box-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* CTA - Call To Action */
+.btn-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  color: white;
+  background-color: var(--primary);
+  transition: background-color 0.2s ease;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn-cta:hover {
+  background-color: var(--primary-dark);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  color: var(--primary);
+  background-color: var(--primary-50);
+  transition: background-color 0.2s ease;
+  border: 1px solid var(--primary-light);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn-secondary:hover {
+  background-color: #dce5f7;
+}
+
+/* Contexto visual para KPIs */
+.kpi-card {
+  border-radius: 0.5rem;
+  background-color: white;
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+  box-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.1);
+}
+
+.kpi-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.5rem;
+  font-size: 1.5rem;
+}
+
+.kpi-icon-primary { background-color: var(--primary-50); color: var(--primary); }
+.kpi-icon-success { background-color: #dcfce7; color: var(--success); }
+.kpi-icon-warning { background-color: #fef3c7; color: var(--warning); }
+.kpi-icon-error { background-color: #fee2e2; color: var(--error); }
+
+/*   __  ____ ____ _  _ 
+ / _\/ ___) ___) )( \
+/    \___ \___ ) \/ (
+\_/\_(____(____|____/ */
