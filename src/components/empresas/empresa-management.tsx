@@ -379,36 +379,44 @@ export function EmpresaManagement({ empresas, categorias, role }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {empresas.map((empresa) => (
-                <TableRow key={empresa.id}>
-                  <TableCell>{empresa.id}</TableCell>
-                  <TableCell>{empresa.razaoSocial}</TableCell>
-                  <TableCell>{empresa.cnpj}</TableCell>
-                  <TableCell>{empresa.categoria.nome}</TableCell>
-                  <TableCell>{empresa.endereco?.bairro ?? "-"}</TableCell>
-                  <TableCell>{empresa.porte}</TableCell>
-                  <TableCell>{empresa.numeroEmpregados}</TableCell>
-                  <TableCell>
-                    <Badge>{empresa.situacao}</Badge>
+              {empresas.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={canEdit || canDelete ? 9 : 8} className="py-8 text-center text-sm text-slate-600">
+                    Nenhuma empresa encontrada para os filtros aplicados.
                   </TableCell>
-                  {canEdit || canDelete ? (
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {canEdit ? (
-                          <Button variant="outline" size="sm" onClick={() => openEdit(empresa)} disabled={loading}>
-                            Editar
-                          </Button>
-                        ) : null}
-                        {canDelete ? (
-                          <Button variant="danger" size="sm" onClick={() => deleteEmpresa(empresa.id)} disabled={loading}>
-                            Excluir
-                          </Button>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                  ) : null}
                 </TableRow>
-              ))}
+              ) : (
+                empresas.map((empresa) => (
+                  <TableRow key={empresa.id}>
+                    <TableCell>{empresa.id}</TableCell>
+                    <TableCell>{empresa.razaoSocial}</TableCell>
+                    <TableCell>{empresa.cnpj}</TableCell>
+                    <TableCell>{empresa.categoria.nome}</TableCell>
+                    <TableCell>{empresa.endereco?.bairro ?? "-"}</TableCell>
+                    <TableCell>{empresa.porte}</TableCell>
+                    <TableCell>{empresa.numeroEmpregados}</TableCell>
+                    <TableCell>
+                      <Badge>{empresa.situacao}</Badge>
+                    </TableCell>
+                    {canEdit || canDelete ? (
+                      <TableCell>
+                        <div className="flex gap-2">
+                          {canEdit ? (
+                            <Button variant="outline" size="sm" onClick={() => openEdit(empresa)} disabled={loading}>
+                              Editar
+                            </Button>
+                          ) : null}
+                          {canDelete ? (
+                            <Button variant="danger" size="sm" onClick={() => deleteEmpresa(empresa.id)} disabled={loading}>
+                              Excluir
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
