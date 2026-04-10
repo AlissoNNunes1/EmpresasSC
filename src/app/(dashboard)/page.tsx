@@ -1,21 +1,21 @@
-import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { EmpresasPorBairro } from "@/components/charts/empresas-por-bairro";
 import { EmpresasPorCategoria } from "@/components/charts/empresas-por-categoria";
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
 import { getDashboardResumo } from "@/lib/services/dashboard/query";
 import {
-  Building2,
-  Users2,
-  Layers,
-  MapPin,
-  Plus,
-  Download,
+    Building2,
+    Download,
+    Layers,
+    MapPin,
+    Plus,
+    Users2,
 } from "lucide-react";
+import Link from "next/link";
 
 export default async function DashboardPage() {
   const resumo = await getDashboardResumo();
@@ -57,55 +57,51 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <main className="space-y-6">
-      {/* Seção de Bem-vindo e CTAs principais */}
-      <section className="rounded-lg bg-gradient-to-r from-[#1b3383] to-[#2a4ba6] p-6 text-white shadow-lg">
-        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Dashboard</h1>
-            <p className="mt-2 text-blue-100">
+    <main className="space-y-8">
+      {/* Seção de Bem-vindo e CTAs principais - reduzida em peso */}
+      <section className="rounded-lg bg-gradient-to-r from-[#1b3383] to-[#2a4ba6] p-4 text-white shadow-md sm:p-5">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="mt-1 text-xs text-blue-100 sm:text-sm">
               Visão geral das empresas e operações em São Cristóvão
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             <Link
               href="/empresas/novo"
               className="btn-cta inline-flex items-center gap-2 bg-white text-[#1b3383] hover:bg-blue-50"
             >
-              <Plus className="h-5 w-5" />
-              Nova Empresa
+              <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-sm">Nova Empresa</span>
             </Link>
             <button className="btn-secondary inline-flex items-center gap-2 border-white bg-white bg-opacity-10 text-white hover:bg-opacity-20">
-              <Download className="h-5 w-5" />
-              Exportar
+              <Download className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-sm">Exportar</span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* KPI Cards com ícones e contexto visual */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI Cards com hierarquia visual melhorada */}
+      <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {kpiData.map((kpi) => {
           const Icon = kpi.icon;
           return (
             <Card key={kpi.id} className="kpi-card">
-              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                   {kpi.title}
                 </CardTitle>
-                <div
-                  className={`kpi-icon kpi-icon-${kpi.color}`}
-                >
+                <div className={`kpi-icon kpi-icon-${kpi.color}`}>
                   <Icon className="h-6 w-6" />
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-3xl font-bold text-[#1b3383]">
+              <CardContent className="space-y-1">
+                <p className="kpi-value">
                   {kpi.value.toLocaleString("pt-BR")}
                 </p>
-                <p className="text-xs font-medium text-slate-600">
-                  {kpi.trend}
-                </p>
+                <p className="kpi-trend">{kpi.trend}</p>
               </CardContent>
             </Card>
           );
@@ -113,10 +109,10 @@ export default async function DashboardPage() {
       </section>
 
       {/* Seção de Gráficos */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="card-elevated">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
+            <CardTitle className="flex items-center gap-2 text-base">
               <Layers className="h-5 w-5 text-[#1b3383]" />
               Empresas por Categoria
             </CardTitle>
@@ -128,7 +124,7 @@ export default async function DashboardPage() {
 
         <Card className="card-elevated">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
+            <CardTitle className="flex items-center gap-2 text-base">
               <MapPin className="h-5 w-5 text-[#1b3383]" />
               Empresas por Bairro
             </CardTitle>
@@ -139,27 +135,28 @@ export default async function DashboardPage() {
         </Card>
       </section>
 
-      {/* Seção de Ações Rápidas */}
-      <section className="rounded-lg border border-slate-200 bg-slate-50 p-6">
-        <h2 className="mb-4 text-lg font-semibold text-[#1b3383]">
+      {/* Seção de Ações Rápidas - com melhor hierarquia e espaço */}
+      <section className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 sm:p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-[#1b3383]">
+          <Layers className="h-5 w-5" />
           Ações Rápidas
         </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Link href="/empresas" className="btn-secondary">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Link href="/empresas" className="btn-secondary py-3">
             <Building2 className="h-4 w-4" />
-            Ver Empresas
+            <span>Ver Empresas</span>
           </Link>
-          <Link href="/usuarios" className="btn-secondary">
+          <Link href="/usuarios" className="btn-secondary py-3">
             <Users2 className="h-4 w-4" />
-            Gerenciar Usuários
+            <span>Gerenciar Usuários</span>
           </Link>
-          <Link href="/relatorios" className="btn-secondary">
+          <Link href="/relatorios" className="btn-secondary py-3">
             <Download className="h-4 w-4" />
-            Gerar Relatórios
+            <span>Relatórios</span>
           </Link>
-          <Link href="/configuracoes" className="btn-secondary">
+          <Link href="/configuracoes" className="btn-secondary py-3">
             <Layers className="h-4 w-4" />
-            Configurações
+            <span>Configurações</span>
           </Link>
         </div>
       </section>

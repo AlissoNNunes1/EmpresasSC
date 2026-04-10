@@ -1,6 +1,6 @@
+import "@/styles/globals.css";
 import type { Metadata } from "next";
 import { Merriweather, Source_Sans_3 } from "next/font/google";
-import "@/styles/globals.css";
 
 const heading = Merriweather({
   variable: "--font-heading",

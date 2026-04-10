@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { listarEmpresas } from "@/services/empresas.service";
 import type { EmpresaRecord } from "@/types/empresa";
+import { useCallback, useEffect, useState } from "react";
 
 export function useEmpresas(query = "") {
   const [empresas, setEmpresas] = useState<EmpresaRecord[]>([]);

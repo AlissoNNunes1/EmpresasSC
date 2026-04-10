@@ -1,6 +1,6 @@
-import type { PapelUsuario } from "@prisma/client";
 import { EmpresaManagement } from "@/components/empresas/empresa-management";
 import type { CategoriaOption, EmpresaRecord } from "@/types/empresa";
+import type { PapelUsuario } from "@prisma/client";
 
 type Props = {
   empresas: EmpresaRecord[];

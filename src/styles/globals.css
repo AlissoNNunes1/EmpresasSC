@@ -8,12 +8,17 @@
   --primary-lighter: #4a6ec9;
   --primary-50: #f0f3fa;
   
-  /* Cores de suporte */
+  /* Cores de suporte e informação */
   --accent: #0f766e;
   --accent-light: #48a9a0;
+  --info: #0284c7;
+  --info-light: #38bdf8;
   --success: #059669;
+  --success-light: #10b981;
   --warning: #d97706;
+  --warning-light: #f59e0b;
   --error: #dc2626;
+  --error-light: #ef4444;
   
   /* Fundos e superfícies */
   --background: #f8fafc;
@@ -21,6 +26,9 @@
   --surface: #ffffff;
   --surface-2: #e2e8f0;
   --surface-3: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
 }
 
 @theme inline {
@@ -160,17 +168,34 @@ h4 { font-size: 1.125rem; font-weight: 600; }
   background-color: #dce5f7;
 }
 
-/* Contexto visual para KPIs */
+/* Contexto visual para KPIs - com melhor hierarquia */
 .kpi-card {
   border-radius: 0.5rem;
   background-color: white;
   padding: 1.5rem;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  border: 1px solid transparent;
 }
 
 .kpi-card:hover {
-  box-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.1);
+  border-color: var(--primary-light);
+}
+
+.kpi-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.kpi-trend {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
 }
 
 .kpi-icon {
