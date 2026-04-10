@@ -3,6 +3,7 @@
 import {
     Bar,
     BarChart,
+  Cell,
     CartesianGrid,
     ResponsiveContainer,
     Tooltip,
@@ -98,12 +99,15 @@ export function EmpresasPorCategoria({ data }: { data: CategoriaData[] }) {
           <Tooltip content={<CustomTooltip />} />
           <Bar
             dataKey="totalEmpresas"
-            fill="#1b3383"
             radius={[8, 8, 0, 0]}
             animationDuration={800}
             label={renderCustomLabel}
             maxBarSize={56}
-          />
+          >
+            {chartData.map((entry) => (
+              <Cell key={entry.categoria} fill={entry.fill} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
