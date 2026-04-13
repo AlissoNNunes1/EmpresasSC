@@ -1,7 +1,33 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cog, Database, ShieldCheck } from "lucide-react";
+import { ConfigPanel } from "@/components/configuracoes/config-panel";
+import { authOptions } from "@/lib/auth";
+import { getConfiguracaoSistema } from "@/lib/services/configuracao/query";
+import { prisma } from "@/lib/prisma";
+import { PapelUsuario } from "@prisma/client";
+import { Cog } from "lucide-react";
+import { getServerSession } from "next-auth";
 
-export default function ConfiguracoesPage() {
+export default async function ConfiguracoesPage() {
+  const session = await getServerSession(authOptions);
+  const role = session?.user?.role ?? PapelUsuario.VISUALIZADOR;
+
+  if (role !== PapelUsuario.ADMIN) {
+    return (
+      <main className="space-y-6">
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+          <h2 className="text-xl font-bold text-amber-800">Acesso restrito</h2>
+          <p className="mt-2 text-sm text-amber-700">
+            Somente usuarios admin podem alterar configuracoes do sistema.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  const [config, categorias] = await Promise.all([
+    getConfiguracaoSistema(),
+    prisma.categoria.findMany({ orderBy: { nome: "asc" } }),
+  ]);
+
   return (
     <main className="space-y-8">
       <section className="rounded-xl border border-[#d7deef] bg-white p-4 shadow-sm sm:p-5">
@@ -20,35 +46,34 @@ export default function ConfiguracoesPage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="h-4 w-4 text-[#1b3383]" />
-              Politicas de Acesso
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-700">
-              Em breve: configuracao de papeis, trilhas de auditoria e controles de sessao.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Database className="h-4 w-4 text-[#1b3383]" />
-              Integracoes e Dados
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-700">
-              Em breve: parametros de exportacao, atualizacao de cache e fontes de dados.
-            </p>
-          </CardContent>
-        </Card>
-      </section>
+      <ConfigPanel
+        initialConfig={{
+          id: config.id,
+          nomeSistema: config.nomeSistema,
+          nomeMunicipio: config.nomeMunicipio,
+          logoUrl: config.logoUrl,
+          emailInstitucional: config.emailInstitucional,
+          minEmpregadosPequena: config.minEmpregadosPequena,
+          maxEmpregadosPequena: config.maxEmpregadosPequena,
+          minEmpregadosMedia: config.minEmpregadosMedia,
+          maxEmpregadosMedia: config.maxEmpregadosMedia,
+          categoriaPadraoId: config.categoriaPadraoId,
+          politicaSenhaMinCaracteres: config.politicaSenhaMinCaracteres,
+          tempoSessaoMinutos: config.tempoSessaoMinutos,
+          controleLoginAtivo: config.controleLoginAtivo,
+          integracaoCnpjAtiva: config.integracaoCnpjAtiva,
+          webhookUrl: config.webhookUrl,
+          criadoEm: config.criadoEm.toISOString(),
+          atualizadoEm: config.atualizadoEm.toISOString(),
+        }}
+        initialCategorias={categorias.map((item) => ({
+          id: item.id,
+          nome: item.nome,
+          status: item.ativo ? "ATIVO" : "INATIVO",
+          criadoEm: item.criadoEm.toISOString(),
+          atualizadoEm: item.atualizadoEm.toISOString(),
+        }))}
+      />
     </main>
   );
 }

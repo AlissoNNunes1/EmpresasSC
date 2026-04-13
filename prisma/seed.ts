@@ -9,10 +9,21 @@ async function main() {
   for (const nome of categorias) {
     await prisma.categoria.upsert({
       where: { nome },
-      update: {},
-      create: { nome },
+      update: { ativo: true },
+      create: { nome, ativo: true },
     });
   }
+
+  await prisma.configuracaoSistema.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      id: 1,
+      nomeSistema: "EmpresasSC",
+      nomeMunicipio: "Sao Cristovao",
+      emailInstitucional: "contato@empresassc.local",
+    },
+  });
 
   const senhaHash = await hash("Admin@123", 10);
 
