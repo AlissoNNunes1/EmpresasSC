@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { PapelUsuario } from "@prisma/client";
-import { requireApiAuth } from "@/lib/session";
 import { registerAccessLog } from "@/lib/access-log";
 import { refreshDashboardCacheViews } from "@/lib/services/dashboard/refresh";
 import { importarEmpresasInteligente, parseImportFile } from "@/lib/services/empresa/import";
+import { requireApiAuth } from "@/lib/session";
+import { PapelUsuario } from "@prisma/client";
+import { NextRequest, NextResponse } from "next/server";
 
 const MODE_MAP = {
   upsert: "UPSERT",
@@ -27,9 +27,19 @@ export async function POST(request: NextRequest) {
 
     const modeRaw = String(formData.get("mode") ?? "upsert").toLowerCase();
     const dryRunRaw = String(formData.get("dryRun") ?? "true").toLowerCase();
+    const mergeDecisionsRaw = formData.get("mergeDecisions");
 
     const mode = MODE_MAP[modeRaw as keyof typeof MODE_MAP] ?? MODE_MAP.upsert;
     const dryRun = dryRunRaw === "true" || dryRunRaw === "1";
+    let mergeDecisions: Record<string, Record<string, "ARQUIVO" | "BANCO">> | undefined;
+
+    if (typeof mergeDecisionsRaw === "string" && mergeDecisionsRaw.trim()) {
+      try {
+        mergeDecisions = JSON.parse(mergeDecisionsRaw) as Record<string, Record<string, "ARQUIVO" | "BANCO">>;
+      } catch {
+        return NextResponse.json({ error: "Formato inválido para decisões de merge" }, { status: 400 });
+      }
+    }
 
     const buffer = await file.arrayBuffer();
     const rows = parseImportFile(buffer);
@@ -42,6 +52,7 @@ export async function POST(request: NextRequest) {
       mode,
       dryRun,
       usuarioRole: auth.session.user.role,
+      mergeDecisions,
     });
 
     await registerAccessLog({

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Loader2, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertTriangle, CheckCircle2, Loader2, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 
 type ResultadoImportacao = {
   totalLinhas: number;
@@ -12,6 +12,11 @@ type ResultadoImportacao = {
   atualizadas: number;
   ignoradas: number;
   erros: Array<{ linha: number; erro: string }>;
+  conflitos: Array<{
+    linha: number;
+    cnpj: string;
+    campos: Array<{ campo: string; valorArquivo: string; valorBanco: string }>;
+  }>;
 };
 
 type ImportMode = "upsert" | "create_only" | "update_only";
@@ -24,6 +29,31 @@ export function EmpresaImportador() {
   const [dryRun, setDryRun] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResultadoImportacao | null>(null);
+
+  function coletarDecisoesMerge(conflitos: ResultadoImportacao["conflitos"]) {
+    const decisions: Record<string, Record<string, "ARQUIVO" | "BANCO">> = {};
+
+    for (const conflito of conflitos) {
+      decisions[conflito.cnpj] = decisions[conflito.cnpj] ?? {};
+
+      for (const campo of conflito.campos) {
+        const usarArquivo = window.confirm(
+          [
+            `Conflito no CNPJ ${conflito.cnpj} (linha ${conflito.linha})`,
+            `Campo: ${campo.campo}`,
+            `Arquivo: ${campo.valorArquivo || "(vazio)"}`,
+            `Banco: ${campo.valorBanco || "(vazio)"}`,
+            "\nClique em OK para usar o valor do arquivo.",
+            "Clique em Cancelar para manter o valor do banco.",
+          ].join("\n")
+        );
+
+        decisions[conflito.cnpj][campo.campo] = usarArquivo ? "ARQUIVO" : "BANCO";
+      }
+    }
+
+    return decisions;
+  }
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -55,7 +85,26 @@ export function EmpresaImportador() {
           return;
         }
 
-        setResult(payload as ResultadoImportacao);
+        const sucesso = payload as ResultadoImportacao;
+        setResult(sucesso);
+
+        if (sucesso.conflitos.length > 0) {
+          const decisions = coletarDecisoesMerge(sucesso.conflitos);
+          formData.append("mergeDecisions", JSON.stringify(decisions));
+
+          const retryResponse = await fetch("/api/import/empresas", {
+            method: "POST",
+            body: formData,
+          });
+
+          const retryPayload = (await retryResponse.json()) as ResultadoImportacao | { error?: string };
+          if (!retryResponse.ok || "error" in retryPayload) {
+            setError((retryPayload as { error?: string }).error ?? "Falha ao aplicar decisões de merge.");
+            return;
+          }
+
+          setResult(retryPayload as ResultadoImportacao);
+        }
 
         if (!dryRun) {
           router.refresh();
@@ -146,6 +195,7 @@ export function EmpresaImportador() {
                 <p>Criadas: {result.criadas}</p>
                 <p>Atualizadas: {result.atualizadas}</p>
                 <p>Erros: {result.erros.length}</p>
+                <p>Conflitos: {result.conflitos.length}</p>
               </div>
 
               {result.erros.length > 0 ? (

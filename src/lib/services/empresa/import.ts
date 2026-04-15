@@ -1,7 +1,7 @@
-import * as XLSX from "xlsx";
-import { PapelUsuario, PorteEmpresa, SituacaoEmpresa, TipoResponsavel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { onlyDigits } from "@/lib/utils";
+import { PapelUsuario, PorteEmpresa, SituacaoEmpresa, TipoResponsavel } from "@prisma/client";
+import * as XLSX from "xlsx";
 
 type ImportMode = "UPSERT" | "CREATE_ONLY" | "UPDATE_ONLY";
 
@@ -9,6 +9,7 @@ type ImportOptions = {
   mode: ImportMode;
   dryRun: boolean;
   usuarioRole: PapelUsuario;
+  mergeDecisions?: Record<string, Record<string, "ARQUIVO" | "BANCO">>;
 };
 
 type ImportError = {
@@ -23,6 +24,19 @@ type ImportResult = {
   atualizadas: number;
   ignoradas: number;
   erros: ImportError[];
+  conflitos: MergeConflict[];
+};
+
+type MergeConflictField = {
+  campo: string;
+  valorArquivo: string;
+  valorBanco: string;
+};
+
+type MergeConflict = {
+  linha: number;
+  cnpj: string;
+  campos: MergeConflictField[];
 };
 
 type RowMap = {
@@ -71,6 +85,10 @@ function normalizeHeader(value: string): string {
     .replace(/[_-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeSemanticValue(value: string): string {
+  return normalizeHeader(value);
 }
 
 function asString(value: unknown): string {
@@ -159,12 +177,52 @@ export function parseImportFile(buffer: ArrayBuffer): Record<string, unknown>[] 
   return rows;
 }
 
-async function resolveCategoriaId(row: RowMap): Promise<number> {
+type CategoriaCacheItem = {
+  id: number;
+  nome: string;
+  ativo: boolean;
+};
+
+type CategoriaCache = {
+  byId: Map<number, CategoriaCacheItem>;
+  byCanonical: Map<string, CategoriaCacheItem>;
+  tempId: number;
+};
+
+function registerCategoriaInCache(cache: CategoriaCache, categoria: CategoriaCacheItem): void {
+  cache.byId.set(categoria.id, categoria);
+  cache.byCanonical.set(normalizeSemanticValue(categoria.nome), categoria);
+}
+
+async function buildCategoriaCache(): Promise<CategoriaCache> {
+  const categorias = await prisma.categoria.findMany();
+  const cache: CategoriaCache = {
+    byId: new Map(),
+    byCanonical: new Map(),
+    tempId: -1,
+  };
+
+  for (const categoria of categorias) {
+    registerCategoriaInCache(cache, {
+      id: categoria.id,
+      nome: categoria.nome,
+      ativo: categoria.ativo,
+    });
+  }
+
+  return cache;
+}
+
+async function resolveCategoriaId(row: RowMap, cache: CategoriaCache, dryRun: boolean): Promise<number> {
   if (row.categoriaId) {
     const id = Number(row.categoriaId);
     if (Number.isFinite(id) && id > 0) {
-      const categoria = await prisma.categoria.findUnique({ where: { id } });
+      const categoria = cache.byId.get(id);
       if (categoria) {
+        if (!categoria.ativo && !dryRun) {
+          await prisma.categoria.update({ where: { id: categoria.id }, data: { ativo: true } });
+          categoria.ativo = true;
+        }
         return categoria.id;
       }
     }
@@ -175,16 +233,201 @@ async function resolveCategoriaId(row: RowMap): Promise<number> {
     throw new Error("Categoria ausente");
   }
 
-  const existente = await prisma.categoria.findFirst({ where: { nome } });
+  const nomeCanonical = normalizeSemanticValue(nome);
+  const existente = cache.byCanonical.get(nomeCanonical);
   if (existente) {
-    if (!existente.ativo) {
+    if (!existente.ativo && !dryRun) {
       await prisma.categoria.update({ where: { id: existente.id }, data: { ativo: true } });
+      existente.ativo = true;
     }
     return existente.id;
   }
 
+  if (dryRun) {
+    const virtual = {
+      id: cache.tempId,
+      nome,
+      ativo: true,
+    };
+    cache.tempId -= 1;
+    registerCategoriaInCache(cache, virtual);
+    return virtual.id;
+  }
+
   const created = await prisma.categoria.create({ data: { nome, ativo: true } });
+  registerCategoriaInCache(cache, {
+    id: created.id,
+    nome: created.nome,
+    ativo: created.ativo,
+  });
   return created.id;
+}
+
+function valueToText(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value).trim();
+}
+
+function isSameText(a: unknown, b: unknown): boolean {
+  return normalizeSemanticValue(valueToText(a)) === normalizeSemanticValue(valueToText(b));
+}
+
+function isSameDigits(a: unknown, b: unknown): boolean {
+  return onlyDigits(valueToText(a)) === onlyDigits(valueToText(b));
+}
+
+type MergePayload = {
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  porte: PorteEmpresa;
+  categoriaId: number;
+  atividadePrincipal: string;
+  numeroEmpregados: number;
+  situacao: SituacaoEmpresa;
+  endereco: {
+    cep: string;
+    bairro: string;
+    logradouro: string;
+  };
+  responsavel: {
+    nome: string;
+    tipo: TipoResponsavel;
+    cpf: string;
+    contato: string;
+  };
+};
+
+function mergeValueByDecision<T>(
+  decision: "ARQUIVO" | "BANCO" | undefined,
+  fileValue: T,
+  dbValue: T
+): T {
+  if (decision === "BANCO") {
+    return dbValue;
+  }
+  return fileValue;
+}
+
+function applyMergeDecisions(
+  cnpj: string,
+  payload: MergePayload,
+  existente: {
+    razaoSocial: string;
+    nomeFantasia: string | null;
+    porte: PorteEmpresa;
+    categoriaId: number;
+    atividadePrincipal: string;
+    numeroEmpregados: number;
+    situacao: SituacaoEmpresa;
+    endereco: { cep: string; bairro: string; logradouro: string } | null;
+    responsaveis: Array<{ nome: string; tipo: TipoResponsavel; cpf: string; contato: string }>;
+  },
+  categoriaCache: CategoriaCache,
+  mergeDecisions?: Record<string, Record<string, "ARQUIVO" | "BANCO">>
+): { payload: MergePayload; conflitos: MergeConflictField[] } {
+  const decisionsByCnpj = mergeDecisions?.[cnpj] ?? {};
+  const conflitos: MergeConflictField[] = [];
+  const firstResponsavel = existente.responsaveis[0] ?? null;
+  const categoriaArquivo = categoriaCache.byId.get(payload.categoriaId)?.nome ?? String(payload.categoriaId);
+  const categoriaBanco = categoriaCache.byId.get(existente.categoriaId)?.nome ?? String(existente.categoriaId);
+
+  const nextPayload: MergePayload = {
+    ...payload,
+    endereco: { ...payload.endereco },
+    responsavel: { ...payload.responsavel },
+  };
+
+  const handleConflict = <T>(
+    campo: string,
+    fileValue: T,
+    dbValue: T,
+    sameCheck: (a: T, b: T) => boolean,
+    apply: (value: T) => void
+  ) => {
+    if (sameCheck(fileValue, dbValue)) {
+      return;
+    }
+
+    const decision = decisionsByCnpj[campo];
+    if (!decision) {
+      conflitos.push({
+        campo,
+        valorArquivo: valueToText(fileValue),
+        valorBanco: valueToText(dbValue),
+      });
+      return;
+    }
+
+    const merged = mergeValueByDecision(decision, fileValue, dbValue);
+    apply(merged);
+  };
+
+  handleConflict("razaoSocial", payload.razaoSocial, existente.razaoSocial, isSameText, (value) => {
+    nextPayload.razaoSocial = value;
+  });
+  handleConflict("nomeFantasia", payload.nomeFantasia ?? "", existente.nomeFantasia ?? "", isSameText, (value) => {
+    nextPayload.nomeFantasia = value || null;
+  });
+  handleConflict("atividadePrincipal", payload.atividadePrincipal, existente.atividadePrincipal, isSameText, (value) => {
+    nextPayload.atividadePrincipal = value;
+  });
+  handleConflict("numeroEmpregados", payload.numeroEmpregados, existente.numeroEmpregados, (a, b) => a === b, (value) => {
+    nextPayload.numeroEmpregados = value;
+  });
+  handleConflict("porte", payload.porte, existente.porte, (a, b) => a === b, (value) => {
+    nextPayload.porte = value;
+  });
+  handleConflict("situacao", payload.situacao, existente.situacao, (a, b) => a === b, (value) => {
+    nextPayload.situacao = value;
+  });
+  handleConflict("categoria", categoriaArquivo, categoriaBanco, isSameText, (value) => {
+    const canonical = normalizeSemanticValue(value);
+    const categoria = categoriaCache.byCanonical.get(canonical);
+    if (categoria) {
+      nextPayload.categoriaId = categoria.id;
+    }
+  });
+
+  const enderecoBanco = existente.endereco ?? { cep: "", bairro: "", logradouro: "" };
+  handleConflict("cep", payload.endereco.cep, enderecoBanco.cep, isSameDigits, (value) => {
+    nextPayload.endereco.cep = onlyDigits(value).padStart(8, "0").slice(0, 8);
+  });
+  handleConflict("bairro", payload.endereco.bairro, enderecoBanco.bairro, isSameText, (value) => {
+    nextPayload.endereco.bairro = value;
+  });
+  handleConflict("logradouro", payload.endereco.logradouro, enderecoBanco.logradouro, isSameText, (value) => {
+    nextPayload.endereco.logradouro = value;
+  });
+
+  const responsavelBanco = firstResponsavel ?? {
+    nome: "",
+    tipo: "PROPRIETARIO" as TipoResponsavel,
+    cpf: "",
+    contato: "",
+  };
+  handleConflict("responsavelNome", payload.responsavel.nome, responsavelBanco.nome, isSameText, (value) => {
+    nextPayload.responsavel.nome = value;
+  });
+  handleConflict("responsavelTipo", payload.responsavel.tipo, responsavelBanco.tipo, (a, b) => a === b, (value) => {
+    nextPayload.responsavel.tipo = value;
+  });
+  handleConflict("responsavelCpf", payload.responsavel.cpf, responsavelBanco.cpf, isSameDigits, (value) => {
+    nextPayload.responsavel.cpf = onlyDigits(value).padStart(11, "0").slice(0, 11);
+  });
+  handleConflict("responsavelContato", payload.responsavel.contato, responsavelBanco.contato, isSameText, (value) => {
+    nextPayload.responsavel.contato = value;
+  });
+
+  if (conflitos.length > 0) {
+    return {
+      payload,
+      conflitos,
+    };
+  }
+
+  return { payload: nextPayload, conflitos: [] };
 }
 
 export async function importarEmpresasInteligente(
@@ -198,6 +441,7 @@ export async function importarEmpresasInteligente(
     atualizadas: 0,
     ignoradas: 0,
     erros: [],
+    conflitos: [],
   };
 
   if (options.usuarioRole === "VISUALIZADOR") {
@@ -206,6 +450,9 @@ export async function importarEmpresasInteligente(
       erros: [{ linha: 0, erro: "Perfil sem permissao para importar empresas" }],
     };
   }
+
+  const categoriaCache = await buildCategoriaCache();
+  const seenCnpjByLine = new Map<string, number>();
 
   for (let i = 0; i < rows.length; i += 1) {
     const linha = i + 2;
@@ -224,10 +471,16 @@ export async function importarEmpresasInteligente(
         throw new Error("CNPJ inválido (esperado 14 dígitos)");
       }
 
+      const firstSeenLine = seenCnpjByLine.get(cnpj);
+      if (firstSeenLine) {
+        throw new Error(`CNPJ duplicado no arquivo (primeira ocorrencia na linha ${firstSeenLine})`);
+      }
+      seenCnpjByLine.set(cnpj, linha);
+
       const numeroEmpregados = parseNumber(mapped.numeroEmpregados ?? "0");
       const porte = parsePorte(mapped.porte ?? "", numeroEmpregados);
       const situacao = parseSituacao(mapped.situacao ?? "ATIVA");
-      const categoriaId = await resolveCategoriaId(mapped);
+      const categoriaId = await resolveCategoriaId(mapped, categoriaCache, options.dryRun);
 
       const responsavelNome = (mapped.responsavelNome ?? "Responsável não informado").trim();
       const responsavelCpf = onlyDigits(mapped.responsavelCpf ?? "").padStart(11, "0").slice(0, 11);
@@ -256,7 +509,13 @@ export async function importarEmpresasInteligente(
         },
       };
 
-      const existente = await prisma.empresa.findUnique({ where: { cnpj } });
+      const existente = await prisma.empresa.findUnique({
+        where: { cnpj },
+        include: {
+          endereco: true,
+          responsaveis: { orderBy: { id: "asc" }, take: 1 },
+        },
+      });
 
       if (options.mode === "CREATE_ONLY" && existente) {
         result.ignoradas += 1;
@@ -270,6 +529,15 @@ export async function importarEmpresasInteligente(
 
       if (options.dryRun) {
         if (existente) {
+          const merge = applyMergeDecisions(cnpj, payload, existente, categoriaCache, options.mergeDecisions);
+          if (merge.conflitos.length > 0) {
+            result.conflitos.push({ linha, cnpj, campos: merge.conflitos });
+            result.ignoradas += 1;
+            continue;
+          }
+        }
+
+        if (existente) {
           result.atualizadas += 1;
         } else {
           result.criadas += 1;
@@ -279,27 +547,34 @@ export async function importarEmpresasInteligente(
       }
 
       if (existente) {
+        const merge = applyMergeDecisions(cnpj, payload, existente, categoriaCache, options.mergeDecisions);
+        if (merge.conflitos.length > 0) {
+          result.conflitos.push({ linha, cnpj, campos: merge.conflitos });
+          result.ignoradas += 1;
+          continue;
+        }
+
         await prisma.$transaction(async (tx) => {
           await tx.pessoa.deleteMany({ where: { empresaId: existente.id } });
 
           await tx.empresa.update({
             where: { id: existente.id },
             data: {
-              razaoSocial: payload.razaoSocial,
-              nomeFantasia: payload.nomeFantasia,
-              porte: payload.porte,
-              categoriaId: payload.categoriaId,
-              atividadePrincipal: payload.atividadePrincipal,
-              numeroEmpregados: payload.numeroEmpregados,
-              situacao: payload.situacao,
+              razaoSocial: merge.payload.razaoSocial,
+              nomeFantasia: merge.payload.nomeFantasia,
+              porte: merge.payload.porte,
+              categoriaId: merge.payload.categoriaId,
+              atividadePrincipal: merge.payload.atividadePrincipal,
+              numeroEmpregados: merge.payload.numeroEmpregados,
+              situacao: merge.payload.situacao,
               endereco: {
                 upsert: {
-                  create: payload.endereco,
-                  update: payload.endereco,
+                  create: merge.payload.endereco,
+                  update: merge.payload.endereco,
                 },
               },
               responsaveis: {
-                create: [payload.responsavel],
+                create: [merge.payload.responsavel],
               },
             },
           });
