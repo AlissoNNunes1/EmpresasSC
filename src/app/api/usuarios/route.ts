@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   const parsed = usuarioCreateSchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: "Dados invalidos", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
   const email = parsed.data.email.trim().toLowerCase();

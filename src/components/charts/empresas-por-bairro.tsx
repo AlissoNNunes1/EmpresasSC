@@ -27,7 +27,7 @@ export function EmpresasPorBairro({ data }: { data: BairroData[] }) {
   if (!data.length) {
     return (
       <div className="flex h-80 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm text-slate-600">
-        Ainda nao ha dados de bairro para exibir.
+        Ainda não há dados de bairro para exibir.
       </div>
     );
   }

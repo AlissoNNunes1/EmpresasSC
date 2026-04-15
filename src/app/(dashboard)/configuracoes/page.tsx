@@ -34,9 +34,9 @@ export default async function ConfiguracoesPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#1b3383]">Sistema</p>
-            <h2 className="text-2xl font-bold text-[#1b3383]">Configuracoes</h2>
+            <h2 className="text-2xl font-bold text-[#1b3383]">Configurações</h2>
             <p className="text-sm text-slate-600">
-              Defina parametros operacionais, politicas de acesso e preferencias de plataforma.
+              Defina parâmetros operacionais, políticas de acesso e preferências de plataforma.
             </p>
           </div>
           <div className="flex items-center gap-2 rounded-lg bg-[#f0f3fa] px-3 py-2 text-sm font-semibold text-[#1b3383]">

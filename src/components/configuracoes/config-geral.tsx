@@ -47,7 +47,7 @@ export function ConfigGeral({ config, categorias, onSave, loading }: Props) {
     try {
       await onSave(form);
     } catch (error) {
-      setErro(error instanceof Error ? error.message : "Falha ao salvar configuracoes gerais.");
+      setErro(error instanceof Error ? error.message : "Falha ao salvar configurações gerais.");
     }
   }
 
@@ -167,7 +167,7 @@ export function ConfigGeral({ config, categorias, onSave, loading }: Props) {
 
       {erro ? <p className="text-sm font-medium text-red-700">{erro}</p> : null}
 
-      <Button type="submit" disabled={loading}>{loading ? "Salvando..." : "Salvar configuracoes gerais"}</Button>
+      <Button type="submit" disabled={loading}>{loading ? "Salvando..." : "Salvar configurações gerais"}</Button>
     </form>
   );
 }

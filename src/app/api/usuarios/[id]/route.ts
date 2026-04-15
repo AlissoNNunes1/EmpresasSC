@@ -16,31 +16,31 @@ export async function PUT(request: NextRequest, context: Params) {
 
   const id = Number((await context.params).id);
   if (Number.isNaN(id)) {
-    return NextResponse.json({ error: "ID invalido" }, { status: 400 });
+    return NextResponse.json({ error: "ID inválido" }, { status: 400 });
   }
 
   const body = await request.json();
   const parsed = usuarioUpdateSchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: "Dados invalidos", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
   const usuarioAtual = await prisma.usuario.findUnique({ where: { id } });
   if (!usuarioAtual) {
-    return NextResponse.json({ error: "Usuario nao encontrado" }, { status: 404 });
+    return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
   }
 
   const usuarioLogadoId = Number(auth.session?.user.id);
   if (usuarioLogadoId === id && parsed.data.status === "INATIVO") {
-    return NextResponse.json({ error: "Nao e permitido desativar o proprio usuario" }, { status: 400 });
+    return NextResponse.json({ error: "Não é permitido desativar o próprio usuário" }, { status: 400 });
   }
 
   if (parsed.data.email) {
     const email = parsed.data.email.trim().toLowerCase();
     const outro = await prisma.usuario.findUnique({ where: { email } });
     if (outro && outro.id !== id) {
-      return NextResponse.json({ error: "Ja existe usuario com este email" }, { status: 409 });
+      return NextResponse.json({ error: "Já existe usuário com este e-mail" }, { status: 409 });
     }
   }
 

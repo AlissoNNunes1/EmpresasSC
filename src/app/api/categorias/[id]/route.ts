@@ -21,7 +21,7 @@ export async function PUT(request: NextRequest, context: Params) {
   const body = await request.json();
   const parsed = categoriaUpdateSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Dados invalidos", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
   if (parsed.data.nome) {

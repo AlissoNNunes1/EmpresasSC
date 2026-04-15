@@ -79,7 +79,7 @@ export default async function EmpresasPage({ searchParams }: Props) {
 
       {erroConsulta ? (
         <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Nao foi possivel carregar os dados de empresas no momento. Atualize a pagina e tente novamente.
+          Não foi possível carregar os dados de empresas no momento. Atualize a página e tente novamente.
         </section>
       ) : null}
 

@@ -36,7 +36,7 @@ export function ConfigSeguranca({ config, onSave, loading }: Props) {
     try {
       await onSave(form);
     } catch (error) {
-      setErro(error instanceof Error ? error.message : "Falha ao salvar configuracoes de seguranca.");
+      setErro(error instanceof Error ? error.message : "Falha ao salvar configurações de segurança.");
     }
   }
 
@@ -110,7 +110,7 @@ export function ConfigSeguranca({ config, onSave, loading }: Props) {
 
       {erro ? <p className="text-sm font-medium text-red-700">{erro}</p> : null}
 
-      <Button type="submit" disabled={loading}>{loading ? "Salvando..." : "Salvar seguranca e integracoes"}</Button>
+      <Button type="submit" disabled={loading}>{loading ? "Salvando..." : "Salvar segurança e integrações"}</Button>
     </form>
   );
 }

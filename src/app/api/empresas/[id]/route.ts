@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, context: Params) {
   });
 
   if (!empresa) {
-    return NextResponse.json({ error: "Empresa nao encontrada" }, { status: 404 });
+    return NextResponse.json({ error: "Empresa não encontrada" }, { status: 404 });
   }
 
   await registerAccessLog({
@@ -74,7 +74,7 @@ export async function PUT(request: NextRequest, context: Params) {
   });
 
   if (!parsed.success) {
-    return NextResponse.json({ error: "Dados invalidos", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
   const updated = await prisma.$transaction(async (tx) => {

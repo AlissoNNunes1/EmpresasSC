@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
-      return NextResponse.json({ error: "Arquivo nao informado" }, { status: 400 });
+      return NextResponse.json({ error: "Arquivo não informado" }, { status: 400 });
     }
 
     const modeRaw = String(formData.get("mode") ?? "upsert").toLowerCase();

@@ -62,7 +62,7 @@ export function EmpresaImportador() {
         }
       } catch {
         setResult(null);
-        setError("Nao foi possivel concluir a importacao agora.");
+        setError("Não foi possível concluir a importação agora.");
       }
     });
   };
@@ -72,18 +72,18 @@ export function EmpresaImportador() {
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base text-[#1b3383]">
           <Upload className="h-4 w-4" />
-          Importacao Inteligente
+          Importação Inteligente
         </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="grid gap-4">
           <p className="text-sm text-slate-700">
-            Envie um arquivo CSV ou XLSX com colunas flexiveis. O sistema detecta cabecalhos,
-            valida linha a linha e aplica criacao/atualizacao por CNPJ.
+            Envie um arquivo CSV ou XLSX com colunas flexíveis. O sistema detecta cabeçalhos,
+            valida linha a linha e aplica criação/atualização por CNPJ.
           </p>
 
           <label className="grid gap-2 text-sm font-medium text-slate-700" htmlFor="arquivo-importacao-empresas">
-            Arquivo de importacao
+            Arquivo de importação
             <input
               id="arquivo-importacao-empresas"
               type="file"
@@ -95,7 +95,7 @@ export function EmpresaImportador() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-2 text-sm font-medium text-slate-700" htmlFor="modo-importacao-empresas">
-              Modo de importacao
+              Modo de importação
               <select
                 id="modo-importacao-empresas"
                 value={mode}
@@ -115,7 +115,7 @@ export function EmpresaImportador() {
                 onChange={(event) => setDryRun(event.target.checked)}
                 className="h-4 w-4 rounded border-slate-400"
               />
-              Rodar em modo de simulacao (sem gravar no banco)
+              Rodar em modo de simulação (sem gravar no banco)
             </label>
           </div>
 
@@ -124,7 +124,7 @@ export function EmpresaImportador() {
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               {dryRun ? "Validar Arquivo" : "Importar Empresas"}
             </button>
-            <p className="text-xs text-slate-500">Campos minimos: razao social, cnpj e categoria.</p>
+            <p className="text-xs text-slate-500">Campos mínimos: razão social, CNPJ e categoria.</p>
           </div>
 
           {error ? (
@@ -137,7 +137,7 @@ export function EmpresaImportador() {
             <section className="grid gap-3 rounded-lg border border-[#d7deef] bg-[#f7f9ff] p-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-[#1b3383]">
                 <CheckCircle2 className="h-4 w-4" />
-                Resultado da importacao
+                Resultado da importação
               </div>
               <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-3">
                 <p>Total de linhas: {result.totalLinhas}</p>
@@ -152,7 +152,7 @@ export function EmpresaImportador() {
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
                   <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-900">
                     <AlertTriangle className="h-4 w-4" />
-                    Linhas com falha (maximo 8 exibidas)
+                    Linhas com falha (máximo 8 exibidas)
                   </p>
                   <ul className="grid gap-1 text-xs text-amber-900">
                     {result.erros.slice(0, 8).map((item) => (

@@ -15,18 +15,18 @@ export async function PATCH(request: NextRequest, context: Params) {
 
   const id = Number((await context.params).id);
   if (Number.isNaN(id)) {
-    return NextResponse.json({ error: "ID invalido" }, { status: 400 });
+    return NextResponse.json({ error: "ID inválido" }, { status: 400 });
   }
 
   const body = await request.json();
   const parsed = usuarioStatusSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Status invalido" }, { status: 400 });
+    return NextResponse.json({ error: "Status inválido" }, { status: 400 });
   }
 
   const usuarioLogadoId = Number(auth.session?.user.id);
   if (usuarioLogadoId === id && parsed.data.status === "INATIVO") {
-    return NextResponse.json({ error: "Nao e permitido desativar o proprio usuario" }, { status: 400 });
+    return NextResponse.json({ error: "Não é permitido desativar o próprio usuário" }, { status: 400 });
   }
 
   const updated = await prisma.usuario.update({

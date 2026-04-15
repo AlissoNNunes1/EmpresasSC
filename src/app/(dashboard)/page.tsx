@@ -112,13 +112,13 @@ export default async function DashboardPage() {
 
       {erroResumo && (
         <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Nao foi possivel carregar os dados do dashboard agora. Atualize a pagina em alguns instantes.
+          Não foi possível carregar os dados do dashboard agora. Atualize a página em alguns instantes.
         </section>
       )}
 
       {!erroResumo && !temDados && (
         <section className="rounded-xl border border-[#d7deef] bg-[#f7f9ff] p-4 text-sm text-slate-700">
-          Ainda nao ha dados suficientes para analise. Cadastre empresas para visualizar indicadores e graficos.
+          Ainda não há dados suficientes para análise. Cadastre empresas para visualizar indicadores e gráficos.
         </section>
       )}
 

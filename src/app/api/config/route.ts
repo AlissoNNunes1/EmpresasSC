@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest) {
   const body = await request.json();
   const parsed = configuracaoSistemaSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Dados invalidos", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
   const atual = await getConfiguracaoSistema();

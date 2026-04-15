@@ -50,7 +50,7 @@ export function ConfigPanel({ initialConfig, initialCategorias }: Props) {
       setConfig(configAtual);
       setCategorias(categoriasAtuais);
     } catch (error) {
-      setErro(error instanceof Error ? error.message : "Falha ao recarregar configuracoes.");
+      setErro(error instanceof Error ? error.message : "Falha ao recarregar configurações.");
     } finally {
       setLoading(false);
     }
@@ -64,10 +64,10 @@ export function ConfigPanel({ initialConfig, initialCategorias }: Props) {
     try {
       const updated = await salvarConfiguracao(payload);
       setConfig(updated);
-      setMensagem("Configuracoes salvas com sucesso.");
+      setMensagem("Configurações salvas com sucesso.");
       await reloadAll();
     } catch (error) {
-      setErro(error instanceof Error ? error.message : "Falha ao salvar configuracoes.");
+      setErro(error instanceof Error ? error.message : "Falha ao salvar configurações.");
       throw error;
     } finally {
       setLoading(false);

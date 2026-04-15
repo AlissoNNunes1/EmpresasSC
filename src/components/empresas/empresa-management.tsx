@@ -234,7 +234,7 @@ export function EmpresaManagement({ empresas, categorias, role }: Props) {
 
     if (!response.ok) {
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Nao foi possivel salvar a empresa.");
+      setError(data?.error ?? "Não foi possível salvar a empresa.");
       return;
     }
 
@@ -243,7 +243,7 @@ export function EmpresaManagement({ empresas, categorias, role }: Props) {
   }
 
   async function deleteEmpresa(id: number) {
-    const ok = window.confirm("Deseja remover esta empresa? Esta acao nao pode ser desfeita.");
+    const ok = window.confirm("Deseja remover esta empresa? Esta ação não pode ser desfeita.");
     if (!ok) {
       return;
     }
@@ -259,7 +259,7 @@ export function EmpresaManagement({ empresas, categorias, role }: Props) {
 
     if (!response.ok) {
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Nao foi possivel remover a empresa.");
+      setError(data?.error ?? "Não foi possível remover a empresa.");
       return;
     }
 

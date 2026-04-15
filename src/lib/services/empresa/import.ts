@@ -95,7 +95,7 @@ function parsePorte(value: string, empregados: number): PorteEmpresa {
   if (raw === "media" || raw === "medio") return "MEDIA";
   if (raw === "grande") return "GRANDE";
 
-  // Classificacao automatica quando porte nao vem no arquivo.
+  // Classificação automática quando o porte não vem no arquivo.
   if (empregados <= 1) return "MEI";
   if (empregados <= 9) return "MICRO";
   if (empregados <= 49) return "PEQUENA";
@@ -217,11 +217,11 @@ export async function importarEmpresasInteligente(
       const cnpj = onlyDigits(mapped.cnpj ?? "");
 
       if (!razaoSocial) {
-        throw new Error("Razao social ausente");
+        throw new Error("Razão social ausente");
       }
 
       if (cnpj.length !== 14) {
-        throw new Error("CNPJ invalido (esperado 14 digitos)");
+        throw new Error("CNPJ inválido (esperado 14 dígitos)");
       }
 
       const numeroEmpregados = parseNumber(mapped.numeroEmpregados ?? "0");
@@ -229,7 +229,7 @@ export async function importarEmpresasInteligente(
       const situacao = parseSituacao(mapped.situacao ?? "ATIVA");
       const categoriaId = await resolveCategoriaId(mapped);
 
-      const responsavelNome = (mapped.responsavelNome ?? "Responsavel nao informado").trim();
+      const responsavelNome = (mapped.responsavelNome ?? "Responsável não informado").trim();
       const responsavelCpf = onlyDigits(mapped.responsavelCpf ?? "").padStart(11, "0").slice(0, 11);
       const responsavelContato = (mapped.responsavelContato ?? "00000000").trim();
       const responsavelTipo = parseResponsavelTipo(mapped.responsavelTipo ?? "PROPRIETARIO");
@@ -240,13 +240,13 @@ export async function importarEmpresasInteligente(
         cnpj,
         porte,
         categoriaId,
-        atividadePrincipal: (mapped.atividadePrincipal ?? "Nao informado").trim() || "Nao informado",
+        atividadePrincipal: (mapped.atividadePrincipal ?? "Não informado").trim() || "Não informado",
         numeroEmpregados,
         situacao,
         endereco: {
           cep: onlyDigits(mapped.cep ?? "").padStart(8, "0").slice(0, 8),
-          bairro: (mapped.bairro ?? "Nao informado").trim() || "Nao informado",
-          logradouro: (mapped.logradouro ?? "Nao informado").trim() || "Nao informado",
+          bairro: (mapped.bairro ?? "Não informado").trim() || "Não informado",
+          logradouro: (mapped.logradouro ?? "Não informado").trim() || "Não informado",
         },
         responsavel: {
           nome: responsavelNome,

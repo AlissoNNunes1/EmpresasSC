@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const parsed = categoriaCreateSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Dados invalidos", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
   const nome = parsed.data.nome.trim();
