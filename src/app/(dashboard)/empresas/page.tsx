@@ -1,4 +1,5 @@
 import { EmpresaFiltros } from "@/components/empresas/empresa-filtros";
+import { EmpresaImportador } from "@/components/empresas/empresa-importador";
 import { EmpresaTable } from "@/components/empresas/empresa-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
@@ -121,6 +122,8 @@ export default async function EmpresasPage({ searchParams }: Props) {
           </p>
         </CardContent>
       </Card>
+
+      {role !== PapelUsuario.VISUALIZADOR ? <EmpresaImportador /> : null}
 
       {!erroConsulta && empresas.length === 0 ? (
         <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
