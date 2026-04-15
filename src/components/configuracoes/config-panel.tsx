@@ -1,17 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { ConfigCategorias } from "@/components/configuracoes/config-categorias";
 import { ConfigGeral } from "@/components/configuracoes/config-geral";
 import { ConfigSeguranca } from "@/components/configuracoes/config-seguranca";
 import {
-  listarCategoriasConfig,
-  obterConfiguracao,
-  salvarConfiguracao,
-  type CategoriaConfig,
-  type ConfiguracaoPayload,
-  type ConfiguracaoSistema,
+    listarCategoriasConfig,
+    obterConfiguracao,
+    salvarConfiguracao,
+    type CategoriaConfig,
+    type ConfiguracaoPayload,
+    type ConfiguracaoSistema,
 } from "@/services/configuracoes.service";
+import { useMemo, useState } from "react";
 
 type Aba = "geral" | "categorias" | "seguranca";
 

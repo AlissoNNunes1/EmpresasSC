@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { CategoriaConfig, ConfiguracaoPayload, ConfiguracaoSistema } from "@/services/configuracoes.service";
+import { useState } from "react";
 
 type Props = {
   config: ConfiguracaoSistema;

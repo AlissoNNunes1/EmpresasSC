@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { PapelUsuario } from "@prisma/client";
+import { registerAccessLog } from "@/lib/access-log";
 import { prisma } from "@/lib/prisma";
 import { requireApiAuth } from "@/lib/session";
-import { registerAccessLog } from "@/lib/access-log";
 import { categoriaCreateSchema } from "@/lib/validations/configuracao";
+import { PapelUsuario } from "@prisma/client";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, PapelUsuario.VISUALIZADOR);

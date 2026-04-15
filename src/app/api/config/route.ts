@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { PapelUsuario } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import { requireApiAuth } from "@/lib/session";
 import { registerAccessLog } from "@/lib/access-log";
-import { configuracaoSistemaSchema } from "@/lib/validations/configuracao";
+import { prisma } from "@/lib/prisma";
 import { getConfiguracaoSistema } from "@/lib/services/configuracao/query";
+import { requireApiAuth } from "@/lib/session";
+import { configuracaoSistemaSchema } from "@/lib/validations/configuracao";
+import { PapelUsuario } from "@prisma/client";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, PapelUsuario.ADMIN);

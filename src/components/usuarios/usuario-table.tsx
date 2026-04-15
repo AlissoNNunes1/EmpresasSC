@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { atualizarStatusUsuario, atualizarUsuario, criarUsuario, listarUsuarios } from "@/services/usuarios.service";
-import type { UsuarioFiltros, UsuarioPayload, UsuarioSistema } from "@/types/usuario";
 import { UsuarioForm } from "@/components/usuarios/usuario-form";
 import { UsuarioModal } from "@/components/usuarios/usuario-modal";
+import { atualizarStatusUsuario, atualizarUsuario, criarUsuario, listarUsuarios } from "@/services/usuarios.service";
+import type { UsuarioFiltros, UsuarioPayload, UsuarioSistema } from "@/types/usuario";
+import { useMemo, useState } from "react";
 
 type Props = {
   initialUsuarios: UsuarioSistema[];

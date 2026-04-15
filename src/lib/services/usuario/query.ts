@@ -1,6 +1,6 @@
-import { PapelUsuario, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { UsuarioFiltros, UsuarioSistema } from "@/types/usuario";
+import { PapelUsuario, Prisma } from "@prisma/client";
 
 function buildWhere(filtros: UsuarioFiltros): Prisma.UsuarioWhereInput {
   const where: Prisma.UsuarioWhereInput = {};

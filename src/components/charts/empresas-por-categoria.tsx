@@ -3,8 +3,8 @@
 import {
     Bar,
     BarChart,
-  Cell,
     CartesianGrid,
+    Cell,
     ResponsiveContainer,
     Tooltip,
     XAxis,

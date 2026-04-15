@@ -1,5 +1,5 @@
+import { PapelUsuario, PorteEmpresa, PrismaClient, SituacaoEmpresa, TipoResponsavel } from "@prisma/client";
 import { hash } from "bcryptjs";
-import { PrismaClient, PapelUsuario, PorteEmpresa, SituacaoEmpresa, TipoResponsavel } from "@prisma/client";
 
 const prisma = new PrismaClient();
 

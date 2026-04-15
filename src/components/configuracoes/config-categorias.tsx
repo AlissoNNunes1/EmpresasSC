@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { atualizarCategoriaConfig, criarCategoriaConfig, type CategoriaConfig } from "@/services/configuracoes.service";
+import { useState } from "react";
 
 type Props = {
   categorias: CategoriaConfig[];

@@ -1,10 +1,10 @@
-import { hash } from "bcryptjs";
-import { NextRequest, NextResponse } from "next/server";
-import { PapelUsuario } from "@prisma/client";
+import { registerAccessLog } from "@/lib/access-log";
 import { prisma } from "@/lib/prisma";
 import { requireApiAuth } from "@/lib/session";
-import { registerAccessLog } from "@/lib/access-log";
 import { usuarioUpdateSchema } from "@/lib/validations/usuario";
+import { PapelUsuario } from "@prisma/client";
+import { hash } from "bcryptjs";
+import { NextRequest, NextResponse } from "next/server";
 
 type Params = { params: Promise<{ id: string }> };
 

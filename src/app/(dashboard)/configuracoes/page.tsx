@@ -1,7 +1,7 @@
 import { ConfigPanel } from "@/components/configuracoes/config-panel";
 import { authOptions } from "@/lib/auth";
-import { getConfiguracaoSistema } from "@/lib/services/configuracao/query";
 import { prisma } from "@/lib/prisma";
+import { getConfiguracaoSistema } from "@/lib/services/configuracao/query";
 import { PapelUsuario } from "@prisma/client";
 import { Cog } from "lucide-react";
 import { getServerSession } from "next-auth";
