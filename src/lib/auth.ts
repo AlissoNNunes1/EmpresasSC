@@ -1,8 +1,8 @@
+import { normalizeUserRole } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
+import { compare } from "bcryptjs";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { compare } from "bcryptjs";
-import { PapelUsuario } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -51,7 +51,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
+        token.role = normalizeUserRole(user.role);
       }
 
       return token;
@@ -59,7 +59,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? "";
-        session.user.role = token.role ?? PapelUsuario.VISUALIZADOR;
+        session.user.role = normalizeUserRole(token.role);
       }
 
       return session;

@@ -1,9 +1,10 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, CheckCircle2, Loader2, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 type ResultadoImportacao = {
   totalLinhas: number;
@@ -21,14 +22,56 @@ type ResultadoImportacao = {
 
 type ImportMode = "upsert" | "create_only" | "update_only";
 
-export function EmpresaImportador() {
+type EmpresaImportadorProps = {
+  exibirEmModal?: boolean;
+};
+
+export function EmpresaImportador({ exibirEmModal = false }: EmpresaImportadorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<ImportMode>("upsert");
   const [dryRun, setDryRun] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResultadoImportacao | null>(null);
+
+  useEffect(() => {
+    if (!exibirEmModal || !isOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [exibirEmModal, isOpen]);
+
+  function openModal() {
+    setError(null);
+    setResult(null);
+    setFile(null);
+    setIsOpen(true);
+  }
+
+  function closeModal() {
+    if (isPending) {
+      return;
+    }
+
+    setIsOpen(false);
+  }
 
   function coletarDecisoesMerge(conflitos: ResultadoImportacao["conflitos"]) {
     const decisions: Record<string, Record<string, "ARQUIVO" | "BANCO">> = {};
@@ -116,12 +159,25 @@ export function EmpresaImportador() {
     });
   };
 
-  return (
+  const formularioImportacao = (
     <Card className="card-elevated">
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base text-[#1b3383]">
-          <Upload className="h-4 w-4" />
-          Importação Inteligente
+        <CardTitle className="flex items-center justify-between gap-2 text-base text-[#1b3383]">
+          <span className="flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Importação Inteligente
+          </span>
+          {exibirEmModal ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={closeModal}
+              aria-label="Fechar modal de importação"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          ) : null}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -216,6 +272,47 @@ export function EmpresaImportador() {
         </form>
       </CardContent>
     </Card>
+  );
+
+  if (!exibirEmModal) {
+    return formularioImportacao;
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-10 px-3"
+        onClick={openModal}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls="modal-importacao-empresas"
+        title="Abrir importação inteligente"
+      >
+        <Upload className="h-4 w-4" />
+        <span className="hidden sm:inline">Importar</span>
+        <span className="sr-only">Abrir importação inteligente</span>
+      </Button>
+
+      {isOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/55 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-importacao-empresas"
+          id="modal-importacao-empresas"
+          onClick={closeModal}
+        >
+          <div className="w-full max-w-3xl" onClick={(event) => event.stopPropagation()}>
+            <div id="titulo-importacao-empresas" className="sr-only">
+              Importação Inteligente de Empresas
+            </div>
+            {formularioImportacao}
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 

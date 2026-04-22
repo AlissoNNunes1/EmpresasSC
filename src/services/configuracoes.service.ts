@@ -67,6 +67,10 @@ export async function atualizarCategoriaConfig(
   });
 }
 
+export async function deletarCategoriaConfig(id: number): Promise<void> {
+  await apiRequest<void>(`/api/categorias/${id}`, { method: "DELETE" });
+}
+
 //   __  ____ ____ _  _ 
 // / _\/ ___) ___) )( \
 // /    \___ \___ ) \/ (

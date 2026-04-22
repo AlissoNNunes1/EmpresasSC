@@ -1,19 +1,27 @@
 "use client";
 
+import { hasRequiredRole, normalizeUserRole } from "@/lib/permissions";
+import type { PapelUsuario } from "@prisma/client";
 import { Building2, FileBarChart2, LayoutDashboard, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/empresas", label: "Empresas", icon: Building2 },
-  { href: "/usuarios", label: "Usuários", icon: Users },
-  { href: "/relatorios", label: "Relatórios", icon: FileBarChart2 },
-  { href: "/configuracoes", label: "Configurações", icon: Settings },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, roleMinima: "VISUALIZADOR" as PapelUsuario },
+  { href: "/empresas", label: "Empresas", icon: Building2, roleMinima: "VISUALIZADOR" as PapelUsuario },
+  { href: "/relatorios", label: "Relatórios", icon: FileBarChart2, roleMinima: "VISUALIZADOR" as PapelUsuario },
+  { href: "/usuarios", label: "Usuários", icon: Users, roleMinima: "ADMIN" as PapelUsuario },
+  { href: "/configuracoes", label: "Configurações", icon: Settings, roleMinima: "ADMIN" as PapelUsuario },
 ];
 
-export function Sidebar() {
+type SidebarProps = {
+  role: PapelUsuario;
+};
+
+export function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname();
+  const roleNormalizado = normalizeUserRole(role);
+  const itensPermitidos = ITEMS.filter((item) => hasRequiredRole(roleNormalizado, item.roleMinima));
 
   // Determina se um item está ativo
   const isActive = (href: string): boolean => {
@@ -37,7 +45,7 @@ export function Sidebar() {
         className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:overflow-x-visible"
         aria-label="Navegacao principal"
       >
-        {ITEMS.map((item) => {
+        {itensPermitidos.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
 
@@ -51,7 +59,7 @@ export function Sidebar() {
                 ${
                   active
                     ? "bg-[#1b3383] text-white shadow-sm"
-                    : "text-slate-700 hover:bg-[#f0f3fa]"
+                    : "text-slate-600 hover:bg-[#f0f3fa] hover:text-[#1b3383]"
                 }
               `}
               aria-current={active ? "page" : undefined}

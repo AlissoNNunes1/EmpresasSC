@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { PapelUsuario } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import { registerAccessLog } from "@/lib/access-log";
-import { requireApiAuth } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { refreshDashboardCacheViews } from "@/lib/services/dashboard/refresh";
 import { findEmpresas } from "@/lib/services/empresa/query";
-import { empresaSchema, filtrosEmpresaSchema } from "@/lib/validations/empresa";
+import { requireApiAuth } from "@/lib/session";
 import { onlyDigits } from "@/lib/utils";
+import { empresaSchema, filtrosEmpresaSchema } from "@/lib/validations/empresa";
+import { PapelUsuario } from "@prisma/client";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const auth = await requireApiAuth(request, PapelUsuario.VISUALIZADOR);

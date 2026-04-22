@@ -4,6 +4,47 @@ const enumPorte = z.enum(["MEI", "MICRO", "PEQUENA", "MEDIA", "GRANDE"]);
 const enumSituacao = z.enum(["ATIVA", "INATIVA", "SUSPENSA", "ENCERRADA"]);
 const enumTipo = z.enum(["PROPRIETARIO", "GERENTE", "RH"]);
 
+function optionalTrimmedString() {
+  return z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  }, z.string().optional());
+}
+
+function optionalPositiveIntFromForm() {
+  return z.preprocess((value) => {
+    if (value === "" || value === null || value === undefined) {
+      return undefined;
+    }
+
+    return value;
+  }, z.coerce.number().int().positive().optional());
+}
+
+function optionalNonNegativeIntFromForm() {
+  return z.preprocess((value) => {
+    if (value === "" || value === null || value === undefined) {
+      return undefined;
+    }
+
+    return value;
+  }, z.coerce.number().int().nonnegative().optional());
+}
+
+function optionalEnumFromForm<T extends [string, ...string[]]>(values: T) {
+  return z.preprocess((value) => {
+    if (value === "" || value === null || value === undefined) {
+      return undefined;
+    }
+
+    return value;
+  }, z.enum(values).optional());
+}
+
 const cpfSchema = z.string().regex(/^\d{11}$/, "CPF deve conter 11 digitos numericos");
 const cnpjSchema = z.string().regex(/^\d{14}$/, "CNPJ deve conter 14 digitos numericos");
 
@@ -34,13 +75,13 @@ export const empresaSchema = z.object({
 });
 
 export const filtrosEmpresaSchema = z.object({
-  categoriaId: z.coerce.number().int().positive().optional(),
-  bairro: z.string().optional(),
-  porte: enumPorte.optional(),
-  situacao: enumSituacao.optional(),
-  minEmpregados: z.coerce.number().int().nonnegative().optional(),
-  maxEmpregados: z.coerce.number().int().nonnegative().optional(),
-  termo: z.string().optional(),
+  categoriaId: optionalPositiveIntFromForm(),
+  bairro: optionalTrimmedString(),
+  porte: optionalEnumFromForm(["MEI", "MICRO", "PEQUENA", "MEDIA", "GRANDE"]),
+  situacao: optionalEnumFromForm(["ATIVA", "INATIVA", "SUSPENSA", "ENCERRADA"]),
+  minEmpregados: optionalNonNegativeIntFromForm(),
+  maxEmpregados: optionalNonNegativeIntFromForm(),
+  termo: optionalTrimmedString(),
 });
 
 export type EmpresaInput = z.infer<typeof empresaSchema>;

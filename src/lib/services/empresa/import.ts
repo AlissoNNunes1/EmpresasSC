@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { onlyDigits } from "@/lib/utils";
 import { PapelUsuario, PorteEmpresa, SituacaoEmpresa, TipoResponsavel } from "@prisma/client";
+import { createHash } from "node:crypto";
 import * as XLSX from "xlsx";
 
 type ImportMode = "UPSERT" | "CREATE_ONLY" | "UPDATE_ONLY";
@@ -40,6 +41,7 @@ type MergeConflict = {
 };
 
 type RowMap = {
+  estabelecimento?: string;
   razaoSocial?: string;
   nomeFantasia?: string;
   cnpj?: string;
@@ -47,6 +49,8 @@ type RowMap = {
   categoriaId?: string;
   atividadePrincipal?: string;
   numeroEmpregados?: string;
+  numeroEmpregadosClt?: string;
+  numeroEmpregadosFamilia?: string;
   porte?: string;
   situacao?: string;
   cep?: string;
@@ -59,19 +63,22 @@ type RowMap = {
 };
 
 const HEADER_ALIASES: Record<keyof RowMap, string[]> = {
+  estabelecimento: ["estabelecimento", "nome do estabelecimento", "nome estabelecimento"],
   razaoSocial: ["razaosocial", "razao social", "razao_social", "razao", "empresa", "nomeempresa"],
   nomeFantasia: ["nomefantasia", "nome fantasia", "fantasia"],
-  cnpj: ["cnpj", "cnpjcpf"],
+  cnpj: ["cnpj", "cnpjcpf", "cnpj cpf"],
   categoria: ["categoria", "categorianome", "categoria nome"],
   categoriaId: ["categoriaid", "categoria id", "idcategoria"],
   atividadePrincipal: ["atividadeprincipal", "atividade principal", "atividade", "cnae"],
   numeroEmpregados: ["numeroempregados", "numero empregados", "empregados", "funcionarios", "qtdfuncionarios", "qtd empregados"],
+  numeroEmpregadosClt: ["numero de empregados clt", "clt", "empregados clt"],
+  numeroEmpregadosFamilia: ["numero de empregados familia", "familia", "família", "empregados familia", "empregados família"],
   porte: ["porte"],
   situacao: ["situacao", "status"],
   cep: ["cep"],
-  bairro: ["bairro"],
+  bairro: ["bairro", "bairro povoado", "bairro / povoado"],
   logradouro: ["logradouro", "endereco", "rua"],
-  responsavelNome: ["responsavel", "responsavelnome", "responsavel nome", "proprietario", "contatonome"],
+  responsavelNome: ["responsavel", "responsavelnome", "responsavel nome", "proprietario", "contatonome", "proprietario gerente rh", "proprietario / gerente / rh"],
   responsavelCpf: ["responsavelcpf", "responsavel cpf", "cpfresponsavel"],
   responsavelContato: ["responsavelcontato", "responsavel contato", "telefone", "contato"],
   responsavelTipo: ["responsaveltipo", "responsavel tipo", "tiporesponsavel"],
@@ -82,6 +89,7 @@ function normalizeHeader(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/\//g, " ")
     .replace(/[_-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -96,6 +104,22 @@ function asString(value: unknown): string {
     return "";
   }
   return String(value).trim();
+}
+
+function mergeHeaderParts(...parts: Array<string | undefined>): string {
+  return parts
+    .filter((part) => Boolean(part && part.trim()))
+    .map((part) => part!.trim())
+    .join(" ")
+    .trim();
+}
+
+function normalizeCellText(value: unknown): string {
+  return normalizeHeader(asString(value));
+}
+
+function normalizeSheetHeader(value: unknown): string {
+  return normalizeCellText(value);
 }
 
 function parseNumber(value: string): number {
@@ -160,21 +184,144 @@ function mapRow(raw: Record<string, unknown>): RowMap {
   return mapped;
 }
 
-export function parseImportFile(buffer: ArrayBuffer): Record<string, unknown>[] {
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const sheetName = workbook.SheetNames[0];
+type ParsedSheetRow = Record<string, unknown>;
 
-  if (!sheetName) {
-    return [];
+function isLikelyHeaderRow(row: unknown[]): boolean {
+  const normalizedCells = row.map((cell) => normalizeSheetHeader(cell));
+  const hasEstabelecimento = normalizedCells.includes("estabelecimento");
+  const hasDocumento = normalizedCells.includes("cnpj cpf") || normalizedCells.includes("cnpj") || normalizedCells.includes("cpf");
+  const hasAtividade = normalizedCells.includes("atividade principal") || normalizedCells.includes("atividade");
+
+  return hasEstabelecimento && hasDocumento && hasAtividade;
+}
+
+function findHeaderRowIndex(matrix: unknown[][]): number {
+  for (let i = 0; i < matrix.length; i += 1) {
+    if (isLikelyHeaderRow(matrix[i])) {
+      return i;
+    }
   }
 
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+  return -1;
+}
+
+function hasCltFamiliaSubheader(row: unknown[]): boolean {
+  const normalizedCells = row.map((cell) => normalizeSheetHeader(cell));
+  return normalizedCells.includes("clt") || normalizedCells.includes("familia");
+}
+
+function getRowNumberValue(row: ParsedSheetRow): string {
+  return asString(row["nº"] ?? row["no"] ?? row["n"] ?? row["numero"] ?? row["n o"] ?? "");
+}
+
+function hasRowNumberColumn(row: ParsedSheetRow): boolean {
+  const keys = Object.keys(row);
+  return keys.includes("nº") || keys.includes("no") || keys.includes("n") || keys.includes("numero") || keys.includes("n o");
+}
+
+function isLikelyDataRow(row: ParsedSheetRow): boolean {
+  const estabelecimento = asString(row.estabelecimento ?? row["estabelecimento"] ?? "");
+  const atividade = asString(row["atividade principal"] ?? row["atividade"] ?? "");
+  const documento = asString(row["cnpj cpf"] ?? row["cnpj"] ?? row["cpf"] ?? "");
+  const endereco = asString(row.endereco ?? row["endereco"] ?? "");
+  const bairro = asString(row["bairro povoado"] ?? row.bairro ?? "");
+  const numeroLinha = getRowNumberValue(row);
+  const possuiColunaNumero = hasRowNumberColumn(row);
+
+  // Ignora linhas de subtotal/resumo quando a planilha possui coluna de numeração.
+  if (possuiColunaNumero && !/^\d+$/.test(numeroLinha)) {
+    return false;
+  }
+
+  const hasMainFields = Boolean(estabelecimento || atividade || documento || endereco || bairro);
+  if (!hasMainFields) {
+    return false;
+  }
+
+  // Evita subtotal por bairro onde "estabelecimento" vira um número e não há documento.
+  if (/^\d+$/.test(estabelecimento) && !onlyDigits(documento)) {
+    return false;
+  }
+
+  const normalizedMain = normalizeSemanticValue(estabelecimento);
+  if (
+    normalizedMain === "total" ||
+    normalizedMain === "povoados" ||
+    normalizedMain === "centro historico" ||
+    normalizedMain === "grande rosa elze"
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function buildRowFromSheetHeaders(headers: string[], values: unknown[]): ParsedSheetRow {
+  const row: ParsedSheetRow = {};
+
+  headers.forEach((header, index) => {
+    const key = header?.trim();
+    if (!key) {
+      return;
+    }
+
+    row[key] = values[index] ?? "";
+  });
+
+  return row;
+}
+
+function extractRowsFromSheet(sheet: XLSX.WorkSheet): ParsedSheetRow[] {
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
     defval: "",
+    blankrows: false,
     raw: false,
   });
 
-  return rows;
+  if (matrix.length === 0) {
+    return [];
+  }
+
+  const headerIndex = findHeaderRowIndex(matrix);
+  if (headerIndex < 0) {
+    return [];
+  }
+
+  const topHeaderRow = matrix[headerIndex] ?? [];
+  const secondRow = matrix[headerIndex + 1] ?? [];
+  const useSecondHeader = hasCltFamiliaSubheader(secondRow);
+  const bodyStartIndex = headerIndex + (useSecondHeader ? 2 : 1);
+  const bodyRows = matrix.slice(bodyStartIndex);
+
+  const headers = topHeaderRow.map((cell, index) => {
+    const top = normalizeSheetHeader(cell);
+    const bottom = useSecondHeader ? normalizeSheetHeader(secondRow[index]) : "";
+    const merged = mergeHeaderParts(top, bottom);
+
+    return merged || top || bottom || `coluna_${index + 1}`;
+  });
+
+  return bodyRows
+    .filter((row) => Array.isArray(row) && row.some((cell) => asString(cell).trim()))
+    .map((row) => buildRowFromSheetHeaders(headers, row as unknown[]))
+    .filter((row) => isLikelyDataRow(row));
+}
+
+export function parseImportFile(buffer: ArrayBuffer): Record<string, unknown>[] {
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const allRows: ParsedSheetRow[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) {
+      continue;
+    }
+
+    allRows.push(...extractRowsFromSheet(sheet));
+  }
+
+  return allRows;
 }
 
 type CategoriaCacheItem = {
@@ -228,10 +375,7 @@ async function resolveCategoriaId(row: RowMap, cache: CategoriaCache, dryRun: bo
     }
   }
 
-  const nome = row.categoria?.trim();
-  if (!nome) {
-    throw new Error("Categoria ausente");
-  }
+  const nome = resolveCategoriaNome(row);
 
   const nomeCanonical = normalizeSemanticValue(nome);
   const existente = cache.byCanonical.get(nomeCanonical);
@@ -268,6 +412,117 @@ function valueToText(value: unknown): string {
     return "";
   }
   return String(value).trim();
+}
+
+function inferResponsavelTipo(value: string): TipoResponsavel {
+  const normalized = normalizeSemanticValue(value);
+
+  if (normalized.includes("gerente")) return "GERENTE";
+  if (normalized.includes("rh")) return "RH";
+  if (normalized.includes("proprietario") || normalized.includes("proprietária") || normalized.includes("proprietario")) {
+    return "PROPRIETARIO";
+  }
+
+  return "PROPRIETARIO";
+}
+
+function parseNumeroEmpregados(row: RowMap): number {
+  const clt = parseNumber(row.numeroEmpregadosClt ?? row.numeroEmpregados ?? "0");
+  const familia = parseNumber(row.numeroEmpregadosFamilia ?? "0");
+  const total = clt + familia;
+
+  if (total > 0) {
+    return total;
+  }
+
+  return parseNumber(row.numeroEmpregados ?? "0");
+}
+
+function parseDocumentoFiscal(value: string): string | null {
+  const raw = normalizeSemanticValue(value);
+
+  if (!raw || raw === "sem cnpj" || raw === "sem cpf" || raw === "nao possui" || raw === "não possui") {
+    return null;
+  }
+
+  const digits = onlyDigits(value);
+
+  if (digits.length === 11 || digits.length === 14) {
+    return digits;
+  }
+
+  // Alguns levantamentos usam zero à esquerda extra no CNPJ.
+  if (digits.length === 15 && digits.startsWith("0")) {
+    const normalized = digits.slice(1);
+    if (normalized.length === 14) {
+      return normalized;
+    }
+  }
+
+  // Valor malformado cai para documento sintético em resolveDocumentoFiscal.
+  return null;
+}
+
+function buildFallbackDocumentoFiscal(row: RowMap): string {
+  const signature = [
+    row.estabelecimento,
+    row.razaoSocial,
+    row.nomeFantasia,
+    row.atividadePrincipal,
+    row.logradouro,
+    row.bairro,
+    row.responsavelNome,
+    row.responsavelContato,
+    row.porte,
+    row.situacao,
+    row.numeroEmpregadosClt,
+    row.numeroEmpregadosFamilia,
+  ]
+    .map((part) => normalizeSemanticValue(part ?? ""))
+    .filter((part) => Boolean(part))
+    .join("|");
+
+  const hash = createHash("sha256").update(signature || "sem-identificacao").digest("hex");
+  const numeric = parseInt(hash.slice(0, 12), 16) % 100000000000000;
+
+  return numeric.toString().padStart(14, "0");
+}
+
+export function resolveDocumentoFiscal(row: RowMap): { documento: string; origem: "CPF" | "CNPJ" | "SINTETICO" } {
+  const bruto = row.cnpj ?? "";
+  const documento = parseDocumentoFiscal(bruto);
+
+  if (documento) {
+    return {
+      documento,
+      origem: documento.length === 11 ? "CPF" : "CNPJ",
+    };
+  }
+
+  return {
+    documento: buildFallbackDocumentoFiscal(row),
+    origem: "SINTETICO",
+  };
+}
+
+export function resolveCategoriaNome(row: RowMap): string {
+  const candidato = row.categoria?.trim() || row.atividadePrincipal?.trim() || row.estabelecimento?.trim() || "";
+
+  if (!candidato) {
+    throw new Error("Categoria ausente");
+  }
+
+  return candidato;
+}
+
+function resolveRazaoSocial(row: RowMap, cnpj: string): string {
+  const candidato =
+    row.razaoSocial?.trim() ||
+    row.estabelecimento?.trim() ||
+    row.nomeFantasia?.trim() ||
+    (cnpj ? `Empresa ${cnpj}` : "Empresa sem razão social");
+
+  return candidato.trim() || "Empresa sem razão social";
 }
 
 function isSameText(a: unknown, b: unknown): boolean {
@@ -460,16 +715,9 @@ export async function importarEmpresasInteligente(
     try {
       const mapped = mapRow(rows[i]);
 
-      const razaoSocial = (mapped.razaoSocial ?? "").trim();
-      const cnpj = onlyDigits(mapped.cnpj ?? "");
-
-      if (!razaoSocial) {
-        throw new Error("Razão social ausente");
-      }
-
-      if (cnpj.length !== 14) {
-        throw new Error("CNPJ inválido (esperado 14 dígitos)");
-      }
+      const documentoFiscal = resolveDocumentoFiscal(mapped);
+      const cnpj = documentoFiscal.documento;
+      const razaoSocial = resolveRazaoSocial(mapped, cnpj);
 
       const firstSeenLine = seenCnpjByLine.get(cnpj);
       if (firstSeenLine) {
@@ -477,7 +725,7 @@ export async function importarEmpresasInteligente(
       }
       seenCnpjByLine.set(cnpj, linha);
 
-      const numeroEmpregados = parseNumber(mapped.numeroEmpregados ?? "0");
+      const numeroEmpregados = parseNumeroEmpregados(mapped);
       const porte = parsePorte(mapped.porte ?? "", numeroEmpregados);
       const situacao = parseSituacao(mapped.situacao ?? "ATIVA");
       const categoriaId = await resolveCategoriaId(mapped, categoriaCache, options.dryRun);
@@ -485,7 +733,7 @@ export async function importarEmpresasInteligente(
       const responsavelNome = (mapped.responsavelNome ?? "Responsável não informado").trim();
       const responsavelCpf = onlyDigits(mapped.responsavelCpf ?? "").padStart(11, "0").slice(0, 11);
       const responsavelContato = (mapped.responsavelContato ?? "00000000").trim();
-      const responsavelTipo = parseResponsavelTipo(mapped.responsavelTipo ?? "PROPRIETARIO");
+      const responsavelTipo = mapped.responsavelTipo ? parseResponsavelTipo(mapped.responsavelTipo) : inferResponsavelTipo(responsavelNome);
 
       const payload = {
         razaoSocial,

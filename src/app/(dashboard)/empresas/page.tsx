@@ -1,5 +1,4 @@
 import { EmpresaFiltros } from "@/components/empresas/empresa-filtros";
-import { EmpresaImportador } from "@/components/empresas/empresa-importador";
 import { EmpresaTable } from "@/components/empresas/empresa-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
@@ -8,9 +7,8 @@ import { findEmpresas } from "@/lib/services/empresa/query";
 import { filtrosEmpresaSchema } from "@/lib/validations/empresa";
 import type { CategoriaOption } from "@/types/empresa";
 import { PapelUsuario } from "@prisma/client";
-import { Building2, FileSpreadsheet, FileText, Search } from "lucide-react";
+import { Building2, Search } from "lucide-react";
 import { getServerSession } from "next-auth";
-import Link from "next/link";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -64,7 +62,7 @@ export default async function EmpresasPage({ searchParams }: Props) {
       <section className="rounded-xl border border-[#d7deef] bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#1b3383]">Modulo Principal</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#1b3383]">Módulo Principal</p>
             <h2 className="text-2xl font-bold text-[#1b3383]">Empresas</h2>
             <p className="text-sm text-slate-600">
               Cadastre, filtre, edite e exporte registros de empresas.
@@ -95,52 +93,16 @@ export default async function EmpresasPage({ searchParams }: Props) {
         </CardContent>
       </Card>
 
-      <Card className="card-elevated">
-        <CardHeader>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base">Resultados ({empresas.length})</CardTitle>
-            <div className="flex flex-wrap gap-2">
-              <Link href={`/api/export/csv?${qs.toString()}`} className="btn-secondary">
-                Exportar CSV
-              </Link>
-              <Link href={`/api/export/xlsx?${qs.toString()}`} className="btn-secondary">
-                <FileSpreadsheet className="h-4 w-4" />
-                Exportar XLSX
-              </Link>
-              <Link href={`/api/export/pdf?${qs.toString()}`} className="btn-secondary">
-                <FileText className="h-4 w-4" />
-                Exportar PDF
-              </Link>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-slate-700">
-            {temFiltrosAtivos
-              ? "Filtros ativos aplicados aos resultados e exportacoes."
-              : "Use os filtros para refinar a listagem e exportar recortes especificos."}
-          </p>
-        </CardContent>
-      </Card>
-
-      {role !== PapelUsuario.VISUALIZADOR ? <EmpresaImportador /> : null}
-
-      {!erroConsulta && empresas.length === 0 ? (
-        <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-          <p className="text-sm font-semibold text-slate-700">Nenhuma empresa encontrada</p>
-          <p className="mt-1 text-sm text-slate-600">
-            Ajuste os filtros ou cadastre uma nova empresa para iniciar os registros.
-          </p>
-          <div className="mt-4">
-            <Link href="/empresas/novo" className="btn-cta">
-              Cadastrar Empresa
-            </Link>
-          </div>
-        </section>
-      ) : null}
-
       {!erroConsulta ? (
-        <EmpresaTable empresas={empresas} categorias={categorias as CategoriaOption[]} role={role} />
+        <EmpresaTable
+          empresas={empresas}
+          categorias={categorias as CategoriaOption[]}
+          role={role}
+          exportCsvUrl={`/api/export/csv?${qs.toString()}`}
+          exportXlsxUrl={`/api/export/xlsx?${qs.toString()}`}
+          exportPdfUrl={`/api/export/pdf?${qs.toString()}`}
+          temFiltrosAtivos={temFiltrosAtivos}
+        />
       ) : null}
     </main>
   );

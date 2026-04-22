@@ -6,12 +6,25 @@ const ROLE_RANK: Record<PapelUsuario, number> = {
   VISUALIZADOR: 1,
 };
 
-export function hasRequiredRole(userRole: PapelUsuario | undefined, requiredRole: PapelUsuario): boolean {
+const ROLE_ALIASES: Record<string, PapelUsuario> = {
+  ADMIN: "ADMIN",
+  ANALISTA: "ANALISTA",
+  VISUALIZADOR: "VISUALIZADOR",
+  OPERADOR: "ANALISTA",
+};
+
+export function normalizeUserRole(userRole: PapelUsuario | string | undefined): PapelUsuario {
   if (!userRole) {
-    return false;
+    return "VISUALIZADOR";
   }
 
-  return ROLE_RANK[userRole] >= ROLE_RANK[requiredRole];
+  const normalized = String(userRole).trim().toUpperCase();
+  return ROLE_ALIASES[normalized] ?? "VISUALIZADOR";
+}
+
+export function hasRequiredRole(userRole: PapelUsuario | string | undefined, requiredRole: PapelUsuario): boolean {
+  const normalizedRole = normalizeUserRole(userRole);
+  return ROLE_RANK[normalizedRole] >= ROLE_RANK[requiredRole];
 }
 
 //   __  ____ ____ _  _ 

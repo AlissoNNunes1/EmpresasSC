@@ -29,7 +29,7 @@ function roleClass(role: UsuarioSistema["role"]) {
 function cargoLabel(role: UsuarioSistema["role"]) {
   if (role === "ADMIN") return "Administrador do sistema";
   if (role === "ANALISTA") return "Gestao operacional";
-  return "Operacao basica";
+  return "Operacão básica";
 }
 
 export function UsuarioTable({ initialUsuarios, currentUserId }: Props) {

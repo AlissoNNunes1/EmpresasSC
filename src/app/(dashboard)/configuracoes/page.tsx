@@ -16,7 +16,7 @@ export default async function ConfiguracoesPage() {
         <section className="rounded-xl border border-amber-200 bg-amber-50 p-6">
           <h2 className="text-xl font-bold text-amber-800">Acesso restrito</h2>
           <p className="mt-2 text-sm text-amber-700">
-            Somente usuarios admin podem alterar configuracoes do sistema.
+            Somente usuários admin podem alterar configuracões do sistema.
           </p>
         </section>
       </main>

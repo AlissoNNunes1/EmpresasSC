@@ -5,6 +5,36 @@ import { categoriaUpdateSchema } from "@/lib/validations/configuracao";
 import { PapelUsuario } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
+export async function DELETE(request: NextRequest, context: Params) {
+  const auth = await requireApiAuth(request, PapelUsuario.ADMIN);
+  if (auth.denied) return auth.denied;
+
+  const id = Number((await context.params).id);
+  if (Number.isNaN(id)) {
+    return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+  }
+
+  const totalEmpresas = await prisma.empresa.count({ where: { categoriaId: id } });
+  if (totalEmpresas > 0) {
+    return NextResponse.json(
+      { error: `Categoria em uso por ${totalEmpresas} empresa${totalEmpresas !== 1 ? "s" : ""}. Reatribua-as antes de excluir.` },
+      { status: 409 }
+    );
+  }
+
+  await prisma.categoria.delete({ where: { id } });
+
+  await registerAccessLog({
+    usuarioId: Number(auth.session?.user.id),
+    email: auth.session?.user.email ?? undefined,
+    rota: `/api/categorias/${id}`,
+    acao: `EXCLUIR_CATEGORIA:${id}`,
+    request,
+  });
+
+  return new NextResponse(null, { status: 204 });
+}
+
 type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(request: NextRequest, context: Params) {

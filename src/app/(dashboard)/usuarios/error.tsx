@@ -8,7 +8,7 @@ export default function UsuariosError({
 }) {
   return (
     <main className="rounded-xl border border-red-200 bg-red-50 p-6">
-      <h2 className="text-xl font-bold text-red-800">Erro ao carregar usuarios</h2>
+      <h2 className="text-xl font-bold text-red-800">Erro ao carregar usuários</h2>
       <p className="mt-2 text-sm text-red-700">Não foi possível exibir esta tela no momento.</p>
       <button type="button" className="btn-cta mt-4" onClick={() => reset()}>
         Tentar novamente

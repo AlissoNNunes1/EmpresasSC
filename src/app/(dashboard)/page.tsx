@@ -140,7 +140,7 @@ export default async function DashboardPage() {
                 <p className="kpi-value">
                   {kpi.value.toLocaleString("pt-BR")}
                 </p>
-                <p className="kpi-trend">Tendencia: {kpi.trend}</p>
+              
               </CardContent>
             </Card>
           );

@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import type { CategoriaConfig, ConfiguracaoPayload, ConfiguracaoSistema } from "@/services/configuracoes.service";
+import { Building2, Mail, SlidersHorizontal, Tag } from "lucide-react";
 import { useState } from "react";
 
 type Props = {
@@ -53,6 +54,10 @@ export function ConfigGeral({ config, categorias, onSave, loading }: Props) {
 
   return (
     <form className="space-y-4" onSubmit={submit}>
+      <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+        <Building2 className="h-4 w-4 text-[#1b3383]" />
+        Identidade do sistema
+      </h4>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <label className="text-sm font-medium text-slate-700">Nome do sistema</label>
@@ -75,7 +80,10 @@ export function ConfigGeral({ config, categorias, onSave, loading }: Props) {
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm font-medium text-slate-700">Email institucional</label>
+          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+            <Mail className="h-3.5 w-3.5 text-slate-400" />
+            E-mail institucional
+          </label>
           <input
             type="email"
             className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"
@@ -97,7 +105,10 @@ export function ConfigGeral({ config, categorias, onSave, loading }: Props) {
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <h4 className="text-sm font-semibold text-slate-900">Parametros do sistema</h4>
+        <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <SlidersHorizontal className="h-4 w-4 text-[#1b3383]" />
+          Parâmetros de porte
+        </h4>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-600">Min pequena</label>
@@ -142,7 +153,10 @@ export function ConfigGeral({ config, categorias, onSave, loading }: Props) {
         </div>
 
         <div className="mt-3 space-y-1">
-          <label className="text-xs font-medium text-slate-600">Categoria padrao</label>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+            <Tag className="h-3.5 w-3.5" />
+            Categoria padrão
+          </label>
           <select
             className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
             value={form.categoriaPadraoId ?? ""}

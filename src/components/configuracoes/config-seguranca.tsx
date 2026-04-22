@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import type { ConfiguracaoPayload, ConfiguracaoSistema } from "@/services/configuracoes.service";
+import { DatabaseBackup, KeyRound, Lock, Plug } from "lucide-react";
 import { useState } from "react";
 
 type Props = {
@@ -42,9 +43,13 @@ export function ConfigSeguranca({ config, onSave, loading }: Props) {
 
   return (
     <form className="space-y-4" onSubmit={submit}>
+      <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+        <KeyRound className="h-4 w-4 text-[#1b3383]" />
+        Política de senhas e sessão
+      </h4>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <label className="text-sm font-medium text-slate-700">Minimo de caracteres da senha</label>
+          <label className="text-sm font-medium text-slate-700">Mínimo de caracteres da senha</label>
           <input
             type="number"
             min={6}
@@ -55,7 +60,7 @@ export function ConfigSeguranca({ config, onSave, loading }: Props) {
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm font-medium text-slate-700">Tempo de sessao (minutos)</label>
+          <label className="text-sm font-medium text-slate-700">Tempo de sessão (minutos)</label>
           <input
             type="number"
             min={15}
@@ -67,7 +72,10 @@ export function ConfigSeguranca({ config, onSave, loading }: Props) {
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <h4 className="text-sm font-semibold text-slate-900">Controle de login e integracoes</h4>
+        <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <Lock className="h-4 w-4 text-[#1b3383]" />
+          Controle de login e integrações
+        </h4>
         <div className="mt-3 space-y-3">
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input
@@ -75,7 +83,7 @@ export function ConfigSeguranca({ config, onSave, loading }: Props) {
               checked={form.controleLoginAtivo}
               onChange={(event) => setForm((prev) => ({ ...prev, controleLoginAtivo: event.target.checked }))}
             />
-            Ativar controle de login reforcado
+            Ativar controle de login reforçado
           </label>
 
           <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -84,11 +92,14 @@ export function ConfigSeguranca({ config, onSave, loading }: Props) {
               checked={form.integracaoCnpjAtiva}
               onChange={(event) => setForm((prev) => ({ ...prev, integracaoCnpjAtiva: event.target.checked }))}
             />
-            Habilitar integracao externa de consulta CNPJ
+            Habilitar integração externa de consulta CNPJ
           </label>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Webhook URL</label>
+            <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+              <Plug className="h-3.5 w-3.5 text-slate-400" />
+              Webhook URL
+            </label>
             <input
               className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"
               placeholder="https://..."
@@ -100,7 +111,10 @@ export function ConfigSeguranca({ config, onSave, loading }: Props) {
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-3">
-        <h4 className="text-sm font-semibold text-slate-900">Backup e exportacao</h4>
+        <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <DatabaseBackup className="h-4 w-4 text-[#1b3383]" />
+          Backup e exportação
+        </h4>
         <div className="mt-3 flex flex-wrap gap-2">
           <a href="/api/export/csv" className="btn-secondary">Exportar CSV</a>
           <a href="/api/export/xlsx" className="btn-secondary">Exportar XLSX</a>

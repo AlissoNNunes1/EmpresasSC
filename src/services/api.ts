@@ -18,7 +18,11 @@ export async function apiRequest<T>(url: string, config: RequestConfig = {}): Pr
 
   if (!response.ok) {
     const data = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? "Falha na comunicacao com a API.");
+    throw new Error(data?.error ?? "Falha na comunicação com a API.");
+  }
+
+  if (response.status === 204 || response.headers.get("content-length") === "0") {
+    return undefined as T;
   }
 
   return (await response.json()) as T;

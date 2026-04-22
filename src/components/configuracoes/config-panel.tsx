@@ -11,6 +11,7 @@ import {
     type ConfiguracaoPayload,
     type ConfiguracaoSistema,
 } from "@/services/configuracoes.service";
+import { Shield, SlidersHorizontal, Tag } from "lucide-react";
 import { useMemo, useState } from "react";
 
 type Aba = "geral" | "categorias" | "seguranca";
@@ -30,9 +31,9 @@ export function ConfigPanel({ initialConfig, initialCategorias }: Props) {
 
   const abas = useMemo(
     () => [
-      { id: "geral" as const, label: "Geral e Parametros" },
-      { id: "categorias" as const, label: "Categorias" },
-      { id: "seguranca" as const, label: "Seguranca e Backup" },
+      { id: "geral" as const, label: "Geral e Parâmetros", icon: SlidersHorizontal },
+      { id: "categorias" as const, label: "Categorias", icon: Tag },
+      { id: "seguranca" as const, label: "Segurança e Backup", icon: Shield },
     ],
     []
   );
@@ -77,24 +78,24 @@ export function ConfigPanel({ initialConfig, initialCategorias }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        {abas.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={
-              item.id === aba
-                ? "btn-cta"
-                : "btn-secondary"
-            }
-            onClick={() => {
-              setMensagem(null);
-              setErro(null);
-              setAba(item.id);
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
+        {abas.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`flex items-center gap-2 ${item.id === aba ? "btn-cta" : "btn-secondary"}`}
+              onClick={() => {
+                setMensagem(null);
+                setErro(null);
+                setAba(item.id);
+              }}
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </button>
+          );
+        })}
       </div>
 
       {mensagem ? <p className="text-sm font-medium text-emerald-700">{mensagem}</p> : null}

@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import { PapelUsuario } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import { registerAccessLog } from "@/lib/access-log";
-import { requireApiAuth } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { refreshDashboardCacheViews } from "@/lib/services/dashboard/refresh";
-import { empresaSchema } from "@/lib/validations/empresa";
+import { requireApiAuth } from "@/lib/session";
 import { onlyDigits } from "@/lib/utils";
+import { empresaSchema } from "@/lib/validations/empresa";
+import { PapelUsuario } from "@prisma/client";
+import { NextRequest, NextResponse } from "next/server";
 
 type Params = {
   params: Promise<{ id: string }>;
