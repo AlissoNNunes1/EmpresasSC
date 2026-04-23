@@ -17,11 +17,11 @@ export function buildEmpresaWhere(filters: FiltrosEmpresaInput): Prisma.EmpresaW
   }
 
   if (filters.porte) {
-    where.porte = filters.porte;
+    where.porte = filters.porte as Prisma.EmpresaWhereInput["porte"];
   }
 
   if (filters.situacao) {
-    where.situacao = filters.situacao;
+    where.situacao = filters.situacao as Prisma.EmpresaWhereInput["situacao"];
   }
 
   if (typeof filters.minEmpregados === "number" || typeof filters.maxEmpregados === "number") {

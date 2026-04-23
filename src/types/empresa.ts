@@ -25,6 +25,7 @@ export type EmpresaRecord = {
     logradouro: string;
   } | null;
   responsaveis: ResponsavelEmpresa[];
+  camposCustom: Array<{ campoId: number; valor: string; campo: { nome: string; label: string } }>;
 };
 
 export type CategoriaOption = {

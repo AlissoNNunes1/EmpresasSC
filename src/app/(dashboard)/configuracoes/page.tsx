@@ -1,10 +1,12 @@
 import { ConfigPanel } from "@/components/configuracoes/config-panel";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getOrInitCampos } from "@/lib/services/campo/query";
 import { getConfiguracaoSistema } from "@/lib/services/configuracao/query";
 import { PapelUsuario } from "@prisma/client";
 import { Cog } from "lucide-react";
 import { getServerSession } from "next-auth";
+import type { CampoEmpresaConfig } from "@/services/campos.service";
 
 export default async function ConfiguracoesPage() {
   const session = await getServerSession(authOptions);
@@ -23,9 +25,10 @@ export default async function ConfiguracoesPage() {
     );
   }
 
-  const [config, categorias] = await Promise.all([
+  const [config, categorias, campos] = await Promise.all([
     getConfiguracaoSistema(),
     prisma.categoria.findMany({ orderBy: { nome: "asc" } }),
+    getOrInitCampos(),
   ]);
 
   return (
@@ -72,6 +75,19 @@ export default async function ConfiguracoesPage() {
           status: item.ativo ? "ATIVO" : "INATIVO",
           criadoEm: item.criadoEm.toISOString(),
           atualizadoEm: item.atualizadoEm.toISOString(),
+        }))}
+        initialCampos={campos.map((c) => ({
+          id: c.id,
+          nome: c.nome,
+          label: c.label,
+          tipo: c.tipo as CampoEmpresaConfig["tipo"],
+          builtin: c.builtin,
+          obrigatorio: c.obrigatorio,
+          visivel: c.visivel,
+          ordem: c.ordem,
+          opcoes: c.opcoes,
+          criadoEm: c.criadoEm.toISOString(),
+          atualizadoEm: c.atualizadoEm.toISOString(),
         }))}
       />
     </main>

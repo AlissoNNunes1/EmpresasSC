@@ -1,36 +1,156 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EmpresasSC
 
-## Getting Started
+Sistema de cadastro e gestão de empresas para o municio de São Cristvão. Permite registrar, filtrar, analisar e exportar dados de empresas com controle de acesso por perfil de usuário.
 
-First, run the development server:
+---
+
+## Funcionalidades
+
+- **Cadastro de empresas** com consulta automática de CNPJ via BrasilAPI (pré-preenchimento do formulário)
+- **Filtros avançados** por categoria, bairro, porte, situação e número de empregados
+- **Dashboard analítico** com KPIs e gráficos de distribuição por categoria, bairro e porte
+- **Exportação** de dados em CSV, XLSX e PDF (respeitando filtros ativos)
+- **Importação em massa** via CSV/XLSX com detecção de duplicatas
+- **Campos personalizados** — administrador pode renomear campos, definir visibilidade, reordenar e adicionar campos extras por empresa
+- **Gerenciamento de categorias** com edição e exclusão inline
+- **Controle de acesso por papel** (Admin, Analista, Visualizador)
+- **Log de acesso** com rastreamento de todas as operações
+
+---
+
+## Papéis de Usuário
+
+| Papel | Permissões |
+|---|---|
+| `ADMIN` | Acesso total — incluindo configurações, usuários e exclusão de registros |
+| `ANALISTA` | Criar e editar empresas |
+| `VISUALIZADOR` | Apenas leitura e exportação |
+
+---
+
+## Stack
+
+| Camada | Tecnologia |
+|---|---|
+| Framework | Next.js 16 (App Router) + React 19 |
+| Linguagem | TypeScript 5 |
+| Banco de dados | SQLite via Prisma 6 |
+| Autenticação | NextAuth 4 |
+| UI | Tailwind CSS 4 + Shadcn UI + Lucide |
+| Gráficos | Recharts |
+| Validação | Zod 4 |
+| Exportação | xlsx + pdf-lib |
+
+---
+
+## Requisitos
+
+- Node.js 20+
+- npm 10+
+
+---
+
+## Instalação
 
 ```bash
+# 1. Instale as dependências
+npm install
+
+# 2. Configure as variáveis de ambiente
+cp .env.example .env
+# Edite .env com suas configurações (ver seção abaixo)
+
+# 3. Execute as migrações do banco
+npm run prisma:migrate
+
+# 4. (Opcional) Popule o banco com dados iniciais
+npm run prisma:seed
+
+# 5. Inicie o servidor de desenvolvimento
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variáveis de Ambiente
 
-## Learn More
+```env
+# URL do banco de dados (SQLite por padrão)
+DATABASE_URL="file:./prisma/dev.db"
 
-To learn more about Next.js, take a look at the following resources:
+# Segredo do NextAuth — troque em produção
+NEXTAUTH_SECRET="troque-esta-chave-em-producao"
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# URL base da aplicação
+NEXTAUTH_URL="http://localhost:3000"
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run dev              # Servidor de desenvolvimento
+npm run build            # Build de produção
+npm start                # Servidor de produção
+npm run lint             # Lint com ESLint
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+npm run prisma:generate  # Gera o Prisma Client
+npm run prisma:migrate   # Aplica migrações do banco
+npm run prisma:seed      # Popula o banco com dados iniciais
+```
+
+---
+
+## Estrutura do Projeto
+
+```
+src/
+├── app/
+│   ├── (dashboard)/         # Páginas autenticadas
+│   │   ├── page.tsx         # Dashboard com KPIs
+│   │   ├── empresas/        # Listagem, detalhes e cadastro
+│   │   ├── usuarios/        # Gerenciamento de usuários (Admin)
+│   │   ├── relatorios/      # Relatórios e exportações
+│   │   └── configuracoes/   # Configurações do sistema (Admin)
+│   └── api/                 # Rotas de API (REST)
+├── components/              # Componentes React reutilizáveis
+├── lib/                     # Serviços, auth, prisma client, utils
+├── services/                # Serviços client-side (fetch)
+└── types/                   # Tipos TypeScript compartilhados
+prisma/
+├── schema.prisma            # Modelo de dados
+└── migrations/              # Histórico de migrações
+```
+
+---
+
+## Modelos Principais
+
+- **Empresa** — CNPJ, razão social, porte, situação, categoria, endereço
+- **Pessoa** — Responsáveis vinculados à empresa (proprietário, gerente, RH)
+- **Categoria** — Classificação de empresas
+- **CampoEmpresa** — Configuração de campos (builtin e customizados)
+- **ValorCampoEmpresa** — Valores dos campos customizados por empresa
+- **Usuario** — Usuários do sistema com papel e status
+- **ConfiguracaoSistema** — Configurações globais da aplicação
+- **LogAcesso** — Auditoria de operações
+
+---
+
+## Produção
+
+Antes de implantar em produção:
+
+1. Defina `NEXTAUTH_SECRET` com um valor aleatório e seguro (`openssl rand -base64 32`)
+2. Ajuste `NEXTAUTH_URL` para o domínio público da aplicação
+3. Considere migrar de SQLite para PostgreSQL para ambientes com múltiplos usuários simultâneos
+4. Configure backups regulares do arquivo de banco de dados
+
+---
+
+## Licença
+
+Uso interno — FUMCTUR / Prefeitura Municipal.

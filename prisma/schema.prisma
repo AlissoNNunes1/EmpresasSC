@@ -101,6 +101,7 @@ model Empresa {
   categoria          Categoria      @relation(fields: [categoriaId], references: [id])
   endereco           Endereco?
   responsaveis       Pessoa[]
+  camposCustom       ValorCampoEmpresa[]
 
   @@index([categoriaId])
   @@index([porte])
@@ -162,6 +163,36 @@ model ResumoPorteView {
   atualizadoEm    DateTime     @updatedAt @map("atualizado_em")
 
   @@map("mv_resumo_porte")
+}
+
+model CampoEmpresa {
+  id          Int       @id @default(autoincrement())
+  nome        String    @unique
+  label       String
+  tipo        String    @default("TEXTO")
+  builtin     Boolean   @default(false)
+  obrigatorio Boolean   @default(false)
+  visivel     Boolean   @default(true)
+  ordem       Int       @default(999)
+  opcoes      String?
+  criadoEm    DateTime  @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+  valores     ValorCampoEmpresa[]
+
+  @@map("campos_empresa")
+}
+
+model ValorCampoEmpresa {
+  id        Int          @id @default(autoincrement())
+  empresaId Int          @map("empresa_id")
+  campoId   Int          @map("campo_id")
+  valor     String
+  empresa   Empresa      @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  campo     CampoEmpresa @relation(fields: [campoId], references: [id], onDelete: Cascade)
+
+  @@unique([empresaId, campoId])
+  @@index([empresaId])
+  @@map("valores_campos_empresa")
 }
 
 model LogAcesso {

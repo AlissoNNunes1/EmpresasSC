@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfigCampos } from "@/components/configuracoes/config-campos";
 import { ConfigCategorias } from "@/components/configuracoes/config-categorias";
 import { ConfigGeral } from "@/components/configuracoes/config-geral";
 import { ConfigSeguranca } from "@/components/configuracoes/config-seguranca";
@@ -11,20 +12,23 @@ import {
     type ConfiguracaoPayload,
     type ConfiguracaoSistema,
 } from "@/services/configuracoes.service";
-import { Shield, SlidersHorizontal, Tag } from "lucide-react";
+import { listarCampos, type CampoEmpresaConfig } from "@/services/campos.service";
+import { FormInput, Shield, SlidersHorizontal, Tag } from "lucide-react";
 import { useMemo, useState } from "react";
 
-type Aba = "geral" | "categorias" | "seguranca";
+type Aba = "geral" | "categorias" | "seguranca" | "campos";
 
 type Props = {
   initialConfig: ConfiguracaoSistema;
   initialCategorias: CategoriaConfig[];
+  initialCampos: CampoEmpresaConfig[];
 };
 
-export function ConfigPanel({ initialConfig, initialCategorias }: Props) {
+export function ConfigPanel({ initialConfig, initialCategorias, initialCampos }: Props) {
   const [aba, setAba] = useState<Aba>("geral");
   const [config, setConfig] = useState(initialConfig);
   const [categorias, setCategorias] = useState(initialCategorias);
+  const [campos, setCampos] = useState(initialCampos);
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -33,6 +37,7 @@ export function ConfigPanel({ initialConfig, initialCategorias }: Props) {
     () => [
       { id: "geral" as const, label: "Geral e Parâmetros", icon: SlidersHorizontal },
       { id: "categorias" as const, label: "Categorias", icon: Tag },
+      { id: "campos" as const, label: "Campos da Empresa", icon: FormInput },
       { id: "seguranca" as const, label: "Segurança e Backup", icon: Shield },
     ],
     []
@@ -43,18 +48,25 @@ export function ConfigPanel({ initialConfig, initialCategorias }: Props) {
     setErro(null);
 
     try {
-      const [configAtual, categoriasAtuais] = await Promise.all([
+      const [configAtual, categoriasAtuais, camposAtuais] = await Promise.all([
         obterConfiguracao(),
         listarCategoriasConfig(),
+        listarCampos(),
       ]);
 
       setConfig(configAtual);
       setCategorias(categoriasAtuais);
+      setCampos(camposAtuais);
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Falha ao recarregar configurações.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function reloadCampos() {
+    const camposAtuais = await listarCampos();
+    setCampos(camposAtuais);
   }
 
   async function salvar(payload: ConfiguracaoPayload) {
@@ -108,6 +120,10 @@ export function ConfigPanel({ initialConfig, initialCategorias }: Props) {
 
         {aba === "categorias" ? (
           <ConfigCategorias categorias={categorias} onReload={reloadAll} loading={loading} />
+        ) : null}
+
+        {aba === "campos" ? (
+          <ConfigCampos campos={campos} onReload={reloadCampos} />
         ) : null}
 
         {aba === "seguranca" ? (

@@ -9,6 +9,7 @@ export async function findEmpresas(filters: FiltrosEmpresaInput) {
       categoria: true,
       endereco: true,
       responsaveis: true,
+      camposCustom: { include: { campo: true } },
     },
     orderBy: {
       razaoSocial: "asc",

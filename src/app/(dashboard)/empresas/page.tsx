@@ -3,12 +3,14 @@ import { EmpresaTable } from "@/components/empresas/empresa-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getCamposVisiveis } from "@/lib/services/campo/query";
 import { findEmpresas } from "@/lib/services/empresa/query";
 import { filtrosEmpresaSchema } from "@/lib/validations/empresa";
 import type { CategoriaOption } from "@/types/empresa";
 import { PapelUsuario } from "@prisma/client";
 import { Building2, Search } from "lucide-react";
 import { getServerSession } from "next-auth";
+import type { CampoEmpresaConfig } from "@/services/campos.service";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -37,10 +39,12 @@ export default async function EmpresasPage({ searchParams }: Props) {
   let empresas = [] as Awaited<ReturnType<typeof findEmpresas>>;
   let categorias = [] as Awaited<ReturnType<typeof prisma.categoria.findMany>>;
 
+  let campos: Awaited<ReturnType<typeof getCamposVisiveis>> = [];
   try {
-    [empresas, categorias] = await Promise.all([
+    [empresas, categorias, campos] = await Promise.all([
       findEmpresas(filtros),
       prisma.categoria.findMany({ orderBy: { nome: "asc" } }),
+      getCamposVisiveis(),
     ]);
   } catch {
     erroConsulta = true;
@@ -98,6 +102,7 @@ export default async function EmpresasPage({ searchParams }: Props) {
           empresas={empresas}
           categorias={categorias as CategoriaOption[]}
           role={role}
+          campos={campos.map((c) => ({ ...c, tipo: c.tipo as CampoEmpresaConfig["tipo"], criadoEm: c.criadoEm.toISOString(), atualizadoEm: c.atualizadoEm.toISOString() }))}
           exportCsvUrl={`/api/export/csv?${qs.toString()}`}
           exportXlsxUrl={`/api/export/xlsx?${qs.toString()}`}
           exportPdfUrl={`/api/export/pdf?${qs.toString()}`}

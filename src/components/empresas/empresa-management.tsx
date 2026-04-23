@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { parseCampoOpcoes, type CampoEmpresaConfig } from "@/services/campos.service";
 import type { PapelUsuario } from "@prisma/client";
 import {
   AlertCircle,
@@ -49,6 +50,7 @@ type EmpresaRecord = {
   categoria: { id: number; nome: string };
   endereco: { cep: string; bairro: string; logradouro: string } | null;
   responsaveis: Responsavel[];
+  camposCustom: Array<{ campoId: number; valor: string; campo: { nome: string; label: string } }>;
 };
 
 type EmpresaFormState = {
@@ -62,6 +64,7 @@ type EmpresaFormState = {
   situacao: "ATIVA" | "INATIVA" | "SUSPENSA" | "ENCERRADA";
   endereco: { cep: string; bairro: string; logradouro: string };
   responsaveis: Responsavel[];
+  camposCustom: Record<number, string>;
 };
 
 type BrasilApiCnpjResponse = {
@@ -84,6 +87,7 @@ type Props = {
   empresas: EmpresaRecord[];
   categorias: CategoriaOption[];
   role: PapelUsuario;
+  campos: CampoEmpresaConfig[];
   exportCsvUrl?: string;
   exportXlsxUrl?: string;
   exportPdfUrl?: string;
@@ -102,6 +106,7 @@ function createEmptyForm(): EmpresaFormState {
     situacao: "ATIVA",
     endereco: { cep: "", bairro: "", logradouro: "" },
     responsaveis: [{ nome: "", tipo: "PROPRIETARIO", cpf: "", contato: "" }],
+    camposCustom: {},
   };
 }
 
@@ -147,7 +152,10 @@ function formatCnpj(cnpj: string): string {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`;
 }
 
-export function EmpresaManagement({ empresas, categorias, role, exportCsvUrl, exportXlsxUrl, exportPdfUrl, temFiltrosAtivos }: Props) {
+export function EmpresaManagement({ empresas, categorias, role, campos, exportCsvUrl, exportXlsxUrl, exportPdfUrl, temFiltrosAtivos }: Props) {
+  const camposCustom = campos.filter((c) => !c.builtin);
+  const getLabel = (nome: string, fallback: string) => campos.find((c) => c.nome === nome)?.label ?? fallback;
+  const isVisivel = (nome: string) => campos.find((c) => c.nome === nome)?.visivel !== false;
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<"create" | "edit" | null>(null);
@@ -262,6 +270,7 @@ export function EmpresaManagement({ empresas, categorias, role, exportCsvUrl, ex
                   contato: "",
                 }))
               : [{ nome: "", tipo: "PROPRIETARIO", cpf: "", contato: "" }],
+          camposCustom: {},
         });
 
         setCnpjConsultado(true);
@@ -312,6 +321,8 @@ export function EmpresaManagement({ empresas, categorias, role, exportCsvUrl, ex
     setEditingId(empresa.id);
     setError(null);
     setCnpjConsultado(false);
+    const customVals: Record<number, string> = {};
+    for (const v of empresa.camposCustom ?? []) customVals[v.campoId] = v.valor;
     setForm({
       razaoSocial: empresa.razaoSocial,
       nomeFantasia: empresa.nomeFantasia ?? "",
@@ -330,6 +341,7 @@ export function EmpresaManagement({ empresas, categorias, role, exportCsvUrl, ex
         empresa.responsaveis.length > 0
           ? empresa.responsaveis.map((item) => ({ nome: item.nome, tipo: item.tipo, cpf: item.cpf, contato: item.contato }))
           : [{ nome: "", tipo: "PROPRIETARIO", cpf: "", contato: "" }],
+      camposCustom: customVals,
     });
   }
 
@@ -391,6 +403,9 @@ export function EmpresaManagement({ empresas, categorias, role, exportCsvUrl, ex
         cpf: normalizeDigits(item.cpf),
         contato: item.contato,
       })),
+      camposCustom: Object.entries(form.camposCustom)
+        .filter(([, valor]) => valor?.trim())
+        .map(([campoId, valor]) => ({ campoId: Number(campoId), valor: valor.trim() })),
     };
 
     const endpoint = mode === "edit" && editingId ? `/api/empresas/${editingId}` : "/api/empresas";
@@ -570,87 +585,101 @@ export function EmpresaManagement({ empresas, categorias, role, exportCsvUrl, ex
 
             <div className="grid grid-cols-1 gap-3 rounded-lg border border-slate-100 bg-white p-4 sm:grid-cols-2">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Razão social</label>
+                <label className="text-xs font-medium text-slate-600">{getLabel("razaoSocial", "Razão Social")}</label>
                 <input
                   value={form.razaoSocial}
                   onChange={(e) => setForm((prev) => ({ ...prev, razaoSocial: e.target.value }))}
                   className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Nome fantasia</label>
-                <input
-                  value={form.nomeFantasia}
-                  onChange={(e) => setForm((prev) => ({ ...prev, nomeFantasia: e.target.value }))}
-                  className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
-                />
-              </div>
+              {isVisivel("nomeFantasia") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("nomeFantasia", "Nome Fantasia")}</label>
+                  <input
+                    value={form.nomeFantasia}
+                    onChange={(e) => setForm((prev) => ({ ...prev, nomeFantasia: e.target.value }))}
+                    className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
+                  />
+                </div>
+              ) : null}
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">CNPJ</label>
+                <label className="text-xs font-medium text-slate-600">{getLabel("cnpj", "CNPJ")}</label>
                 <input value={formatCnpj(form.cnpj)} readOnly className="h-9 w-full rounded-md border border-slate-300 bg-slate-100 px-2.5 font-mono text-sm" />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Porte</label>
-                <select
-                  value={form.porte}
-                  onChange={(e) => setForm((prev) => ({ ...prev, porte: e.target.value as EmpresaFormState["porte"] }))}
-                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm"
-                >
-                  <option value="MEI">MEI</option>
-                  <option value="MICRO">Micro</option>
-                  <option value="PEQUENA">Pequena</option>
-                  <option value="MEDIA">Média</option>
-                  <option value="GRANDE">Grande</option>
-                </select>
-              </div>
+              {isVisivel("porte") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("porte", "Porte")}</label>
+                  <select
+                    value={form.porte}
+                    onChange={(e) => setForm((prev) => ({ ...prev, porte: e.target.value as EmpresaFormState["porte"] }))}
+                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm"
+                  >
+                    <option value="MEI">MEI</option>
+                    <option value="MICRO">Micro</option>
+                    <option value="PEQUENA">Pequena</option>
+                    <option value="MEDIA">Média</option>
+                    <option value="GRANDE">Grande</option>
+                  </select>
+                </div>
+              ) : null}
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Atividade principal</label>
-                <input
-                  value={form.atividadePrincipal}
-                  onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))}
-                  className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Situação</label>
-                <select
-                  value={form.situacao}
-                  onChange={(e) => setForm((prev) => ({ ...prev, situacao: e.target.value as EmpresaFormState["situacao"] }))}
-                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm"
-                >
-                  <option value="ATIVA">Ativa</option>
-                  <option value="INATIVA">Inativa</option>
-                  <option value="SUSPENSA">Suspensa</option>
-                  <option value="ENCERRADA">Encerrada</option>
-                </select>
-              </div>
+              {isVisivel("atividadePrincipal") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("atividadePrincipal", "Atividade Principal")}</label>
+                  <input
+                    value={form.atividadePrincipal}
+                    onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))}
+                    className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
+                  />
+                </div>
+              ) : null}
+              {isVisivel("situacao") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("situacao", "Situação")}</label>
+                  <select
+                    value={form.situacao}
+                    onChange={(e) => setForm((prev) => ({ ...prev, situacao: e.target.value as EmpresaFormState["situacao"] }))}
+                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm"
+                  >
+                    <option value="ATIVA">Ativa</option>
+                    <option value="INATIVA">Inativa</option>
+                    <option value="SUSPENSA">Suspensa</option>
+                    <option value="ENCERRADA">Encerrada</option>
+                  </select>
+                </div>
+              ) : null}
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">CEP</label>
-                <input
-                  value={form.endereco.cep}
-                  onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, cep: e.target.value } }))}
-                  className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Bairro</label>
-                <input
-                  value={form.endereco.bairro}
-                  onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))}
-                  className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
-                />
-              </div>
-              <div className="col-span-full space-y-1">
-                <label className="text-xs font-medium text-slate-600">Logradouro</label>
-                <input
-                  value={form.endereco.logradouro}
-                  onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, logradouro: e.target.value } }))}
-                  className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
-                />
-              </div>
+              {isVisivel("enderecoCep") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoCep", "CEP")}</label>
+                  <input
+                    value={form.endereco.cep}
+                    onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, cep: e.target.value } }))}
+                    className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
+                  />
+                </div>
+              ) : null}
+              {isVisivel("enderecoBairro") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoBairro", "Bairro")}</label>
+                  <input
+                    value={form.endereco.bairro}
+                    onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))}
+                    className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
+                  />
+                </div>
+              ) : null}
+              {isVisivel("enderecoLogradouro") ? (
+                <div className="col-span-full space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoLogradouro", "Logradouro")}</label>
+                  <input
+                    value={form.endereco.logradouro}
+                    onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, logradouro: e.target.value } }))}
+                    className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -705,15 +734,17 @@ export function EmpresaManagement({ empresas, categorias, role, exportCsvUrl, ex
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Razão social *</label>
+                <label className="text-xs font-medium text-slate-600">{getLabel("razaoSocial", "Razão Social")} *</label>
                 <Input placeholder="Razão social" value={form.razaoSocial} onChange={(e) => setForm((prev) => ({ ...prev, razaoSocial: e.target.value }))} required />
               </div>
+              {isVisivel("nomeFantasia") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("nomeFantasia", "Nome Fantasia")}</label>
+                  <Input placeholder="Nome fantasia" value={form.nomeFantasia} onChange={(e) => setForm((prev) => ({ ...prev, nomeFantasia: e.target.value }))} />
+                </div>
+              ) : null}
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Nome fantasia</label>
-                <Input placeholder="Nome fantasia" value={form.nomeFantasia} onChange={(e) => setForm((prev) => ({ ...prev, nomeFantasia: e.target.value }))} />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">CNPJ *</label>
+                <label className="text-xs font-medium text-slate-600">{getLabel("cnpj", "CNPJ")} *</label>
                 <Input
                   placeholder="Somente números"
                   value={mode === "create" ? formatCnpj(form.cnpj) : form.cnpj}
@@ -724,62 +755,119 @@ export function EmpresaManagement({ empresas, categorias, role, exportCsvUrl, ex
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Porte *</label>
-                <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={form.porte} onChange={(e) => setForm((prev) => ({ ...prev, porte: e.target.value as EmpresaFormState["porte"] }))}>
-                  <option value="MEI">MEI</option>
-                  <option value="MICRO">Micro</option>
-                  <option value="PEQUENA">Pequena</option>
-                  <option value="MEDIA">Média</option>
-                  <option value="GRANDE">Grande</option>
-                </select>
-              </div>
+              {isVisivel("porte") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("porte", "Porte")} *</label>
+                  <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={form.porte} onChange={(e) => setForm((prev) => ({ ...prev, porte: e.target.value as EmpresaFormState["porte"] }))}>
+                    <option value="MEI">MEI</option>
+                    <option value="MICRO">Micro</option>
+                    <option value="PEQUENA">Pequena</option>
+                    <option value="MEDIA">Média</option>
+                    <option value="GRANDE">Grande</option>
+                  </select>
+                </div>
+              ) : null}
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Categoria *</label>
-                <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={form.categoriaId} onChange={(e) => setForm((prev) => ({ ...prev, categoriaId: e.target.value }))} required>
-                  <option value="">Selecione a categoria</option>
-                  {categorias.map((categoria) => (
-                    <option key={categoria.id} value={categoria.id}>{categoria.nome}</option>
-                  ))}
-                </select>
-              </div>
+              {isVisivel("categoriaId") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("categoriaId", "Categoria")} *</label>
+                  <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={form.categoriaId} onChange={(e) => setForm((prev) => ({ ...prev, categoriaId: e.target.value }))} required>
+                    <option value="">Selecione a categoria</option>
+                    {categorias.map((categoria) => (
+                      <option key={categoria.id} value={categoria.id}>{categoria.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Atividade principal *</label>
-                <Input placeholder="Atividade principal" value={form.atividadePrincipal} onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))} required />
-              </div>
+              {isVisivel("atividadePrincipal") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("atividadePrincipal", "Atividade Principal")} *</label>
+                  <Input placeholder="Atividade principal" value={form.atividadePrincipal} onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))} required />
+                </div>
+              ) : null}
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Nº de empregados *</label>
-                <Input type="number" min={0} placeholder="Número de empregados" value={form.numeroEmpregados} onChange={(e) => setForm((prev) => ({ ...prev, numeroEmpregados: e.target.value }))} required />
-              </div>
+              {isVisivel("numeroEmpregados") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("numeroEmpregados", "Nº de Empregados")} *</label>
+                  <Input type="number" min={0} placeholder="Número de empregados" value={form.numeroEmpregados} onChange={(e) => setForm((prev) => ({ ...prev, numeroEmpregados: e.target.value }))} required />
+                </div>
+              ) : null}
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Situação *</label>
-                <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={form.situacao} onChange={(e) => setForm((prev) => ({ ...prev, situacao: e.target.value as EmpresaFormState["situacao"] }))}>
-                  <option value="ATIVA">Ativa</option>
-                  <option value="INATIVA">Inativa</option>
-                  <option value="SUSPENSA">Suspensa</option>
-                  <option value="ENCERRADA">Encerrada</option>
-                </select>
-              </div>
+              {isVisivel("situacao") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("situacao", "Situação")} *</label>
+                  <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={form.situacao} onChange={(e) => setForm((prev) => ({ ...prev, situacao: e.target.value as EmpresaFormState["situacao"] }))}>
+                    <option value="ATIVA">Ativa</option>
+                    <option value="INATIVA">Inativa</option>
+                    <option value="SUSPENSA">Suspensa</option>
+                    <option value="ENCERRADA">Encerrada</option>
+                  </select>
+                </div>
+              ) : null}
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">CEP *</label>
-                <Input placeholder="CEP" value={form.endereco.cep} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, cep: e.target.value } }))} required />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Bairro *</label>
-                <Input placeholder="Bairro" value={form.endereco.bairro} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))} required />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">Logradouro *</label>
-                <Input placeholder="Logradouro" value={form.endereco.logradouro} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, logradouro: e.target.value } }))} required />
-              </div>
+              {isVisivel("enderecoCep") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoCep", "CEP")} *</label>
+                  <Input placeholder="CEP" value={form.endereco.cep} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, cep: e.target.value } }))} required />
+                </div>
+              ) : null}
+              {isVisivel("enderecoBairro") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoBairro", "Bairro")} *</label>
+                  <Input placeholder="Bairro" value={form.endereco.bairro} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))} required />
+                </div>
+              ) : null}
+              {isVisivel("enderecoLogradouro") ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoLogradouro", "Logradouro")} *</label>
+                  <Input placeholder="Logradouro" value={form.endereco.logradouro} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, logradouro: e.target.value } }))} required />
+                </div>
+              ) : null}
             </div>
+
+            {camposCustom.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {camposCustom.map((campo) => (
+                  <div key={campo.id} className="space-y-1">
+                    <label className="text-xs font-medium text-slate-600">
+                      {campo.label}
+                      {campo.obrigatorio ? " *" : ""}
+                    </label>
+                    {campo.tipo === "TEXTAREA" ? (
+                      <textarea
+                        value={form.camposCustom[campo.id] ?? ""}
+                        onChange={(e) => setForm((prev) => ({ ...prev, camposCustom: { ...prev.camposCustom, [campo.id]: e.target.value } }))}
+                        required={campo.obrigatorio}
+                        rows={3}
+                        className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm"
+                      />
+                    ) : campo.tipo === "SELECT" ? (
+                      <select
+                        value={form.camposCustom[campo.id] ?? ""}
+                        onChange={(e) => setForm((prev) => ({ ...prev, camposCustom: { ...prev.camposCustom, [campo.id]: e.target.value } }))}
+                        required={campo.obrigatorio}
+                        className="h-10 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm"
+                      >
+                        <option value="">Selecione…</option>
+                        {parseCampoOpcoes(campo.opcoes).map((op) => (
+                          <option key={op} value={op}>{op}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        type={campo.tipo === "NUMERO" ? "number" : campo.tipo === "DATA" ? "date" : "text"}
+                        value={form.camposCustom[campo.id] ?? ""}
+                        onChange={(e) => setForm((prev) => ({ ...prev, camposCustom: { ...prev.camposCustom, [campo.id]: e.target.value } }))}
+                        required={campo.obrigatorio}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">

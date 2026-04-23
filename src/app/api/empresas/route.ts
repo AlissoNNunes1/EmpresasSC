@@ -67,6 +67,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
+  const camposCustom = Array.isArray(body.camposCustom)
+    ? (body.camposCustom as { campoId: number; valor: string }[])
+    : [];
+
   const created = await prisma.empresa.create({
     data: {
       razaoSocial: parsed.data.razaoSocial,
@@ -77,17 +81,19 @@ export async function POST(request: NextRequest) {
       atividadePrincipal: parsed.data.atividadePrincipal,
       numeroEmpregados: parsed.data.numeroEmpregados,
       situacao: parsed.data.situacao,
-      endereco: {
-        create: parsed.data.endereco,
-      },
-      responsaveis: {
-        create: parsed.data.responsaveis,
+      endereco: { create: parsed.data.endereco },
+      responsaveis: { create: parsed.data.responsaveis },
+      camposCustom: {
+        create: camposCustom
+          .filter((c) => c.valor?.trim())
+          .map((c) => ({ campoId: c.campoId, valor: c.valor.trim() })),
       },
     },
     include: {
       categoria: true,
       endereco: true,
       responsaveis: true,
+      camposCustom: { include: { campo: true } },
     },
   });
 

@@ -28,6 +28,7 @@ export async function GET(request: NextRequest, context: Params) {
       categoria: true,
       endereco: true,
       responsaveis: true,
+      camposCustom: { include: { campo: true } },
     },
   });
 
@@ -77,8 +78,13 @@ export async function PUT(request: NextRequest, context: Params) {
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
+  const camposCustom = Array.isArray(body.camposCustom)
+    ? (body.camposCustom as { campoId: number; valor: string }[])
+    : [];
+
   const updated = await prisma.$transaction(async (tx) => {
     await tx.pessoa.deleteMany({ where: { empresaId: id } });
+    await tx.valorCampoEmpresa.deleteMany({ where: { empresaId: id } });
 
     return tx.empresa.update({
       where: { id },
@@ -97,14 +103,18 @@ export async function PUT(request: NextRequest, context: Params) {
             create: parsed.data.endereco,
           },
         },
-        responsaveis: {
-          create: parsed.data.responsaveis,
+        responsaveis: { create: parsed.data.responsaveis },
+        camposCustom: {
+          create: camposCustom
+            .filter((c) => c.valor?.trim())
+            .map((c) => ({ campoId: c.campoId, valor: c.valor.trim() })),
         },
       },
       include: {
         categoria: true,
         endereco: true,
         responsaveis: true,
+        camposCustom: { include: { campo: true } },
       },
     });
   });
