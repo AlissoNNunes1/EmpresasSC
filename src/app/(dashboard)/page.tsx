@@ -94,19 +94,7 @@ export default async function DashboardPage() {
             </p>
           </div>
 
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
-            <Link
-              href="/empresas/novo"
-              className="btn-cta inline-flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="text-sm">Nova Empresa</span>
-            </Link>
-            <Link href="/relatorios" className="btn-secondary inline-flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              <span className="text-sm">Exportar Dados</span>
-            </Link>
-          </div>
+          
         </div>
       </section>
 
