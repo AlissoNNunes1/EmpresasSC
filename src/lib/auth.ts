@@ -4,12 +4,28 @@ import { compare } from "bcryptjs";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
+const useSecure = process.env.NODE_ENV === "production";
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
   pages: {
     signIn: "/login",
+  },
+  cookies: {
+    sessionToken: {
+      name: useSecure ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecure },
+    },
+    callbackUrl: {
+      name: useSecure ? "__Secure-next-auth.callback-url" : "next-auth.callback-url",
+      options: { sameSite: "lax", path: "/", secure: useSecure },
+    },
+    csrfToken: {
+      name: useSecure ? "__Host-next-auth.csrf-token" : "next-auth.csrf-token",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecure },
+    },
   },
   providers: [
     CredentialsProvider({
