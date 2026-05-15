@@ -11,6 +11,9 @@ export default async function RelatoriosPage() {
     orderBy: { nome: "asc" },
   });
 
+  const exportQs = new URLSearchParams();
+  exportQs.set("source", "relatorios");
+
   return (
     <main className="space-y-8">
       <section className="rounded-xl border border-[#d7deef] bg-white p-4 shadow-sm sm:p-5">
@@ -43,15 +46,15 @@ export default async function RelatoriosPage() {
             Para exportar com filtros específicos, aplique os filtros na tela de empresas antes de exportar.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Link href="/api/export/csv" className="btn-secondary">
+            <Link href={`/api/export/csv?${exportQs.toString()}`} className="btn-secondary">
               <Download className="h-4 w-4" />
               Exportar CSV
             </Link>
-            <Link href="/api/export/xlsx" className="btn-secondary">
+            <Link href={`/api/export/xlsx?${exportQs.toString()}`} className="btn-secondary">
               <Download className="h-4 w-4" />
               Exportar XLSX
             </Link>
-            <Link href="/api/export/pdf" className="btn-secondary">
+            <Link href={`/api/export/pdf?${exportQs.toString()}`} className="btn-secondary">
               <Download className="h-4 w-4" />
               Exportar PDF
             </Link>

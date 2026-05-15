@@ -60,6 +60,8 @@ export default async function EmpresasPage({ searchParams }: Props) {
   });
 
   const temFiltrosAtivos = qs.toString().length > 0;
+  const exportQs = new URLSearchParams(qs);
+  exportQs.set("source", "empresas");
 
   return (
     <main className="space-y-8">
@@ -103,9 +105,9 @@ export default async function EmpresasPage({ searchParams }: Props) {
           categorias={categorias as CategoriaOption[]}
           role={role}
           campos={campos.map((c) => ({ ...c, tipo: c.tipo as CampoEmpresaConfig["tipo"], criadoEm: c.criadoEm.toISOString(), atualizadoEm: c.atualizadoEm.toISOString() }))}
-          exportCsvUrl={`/api/export/csv?${qs.toString()}`}
-          exportXlsxUrl={`/api/export/xlsx?${qs.toString()}`}
-          exportPdfUrl={`/api/export/pdf?${qs.toString()}`}
+          exportCsvUrl={`/api/export/csv?${exportQs.toString()}`}
+          exportXlsxUrl={`/api/export/xlsx?${exportQs.toString()}`}
+          exportPdfUrl={`/api/export/pdf?${exportQs.toString()}`}
           temFiltrosAtivos={temFiltrosAtivos}
         />
       ) : null}

@@ -152,8 +152,22 @@ function formatCnpj(cnpj: string): string {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`;
 }
 
+function mergeSelectOptions(options: string[], currentValue: string): string[] {
+  const normalized = options.map((option) => option.trim()).filter(Boolean);
+  const unique = [...new Set(normalized)];
+  const current = currentValue.trim();
+
+  if (current && !unique.includes(current)) {
+    unique.unshift(current);
+  }
+
+  return unique;
+}
+
 export function EmpresaManagement({ empresas, categorias, role, campos, exportCsvUrl, exportXlsxUrl, exportPdfUrl, temFiltrosAtivos }: Props) {
   const camposCustom = campos.filter((c) => !c.builtin);
+  const campoAtividadePrincipal = campos.find((c) => c.nome === "atividadePrincipal");
+  const campoEnderecoBairro = campos.find((c) => c.nome === "enderecoBairro");
   const getLabel = (nome: string, fallback: string) => campos.find((c) => c.nome === nome)?.label ?? fallback;
   const isVisivel = (nome: string) => campos.find((c) => c.nome === nome)?.visivel !== false;
   const router = useRouter();
@@ -627,11 +641,24 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
               {isVisivel("atividadePrincipal") ? (
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-600">{getLabel("atividadePrincipal", "Atividade Principal")}</label>
-                  <input
-                    value={form.atividadePrincipal}
-                    onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))}
-                    className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
-                  />
+                  {campoAtividadePrincipal && parseCampoOpcoes(campoAtividadePrincipal.opcoes).length > 0 ? (
+                    <select
+                      className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm"
+                      value={form.atividadePrincipal}
+                      onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))}
+                    >
+                      <option value="">Selecione a atividade principal</option>
+                      {mergeSelectOptions(parseCampoOpcoes(campoAtividadePrincipal.opcoes), form.atividadePrincipal).map((opcao) => (
+                        <option key={opcao} value={opcao}>{opcao}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={form.atividadePrincipal}
+                      onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))}
+                      className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
+                    />
+                  )}
                 </div>
               ) : null}
               {isVisivel("situacao") ? (
@@ -662,12 +689,25 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
               ) : null}
               {isVisivel("enderecoBairro") ? (
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoBairro", "Bairro")}</label>
-                  <input
-                    value={form.endereco.bairro}
-                    onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))}
-                    className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
-                  />
+                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoBairro", "Bairro/Povoado")}</label>
+                  {campoEnderecoBairro && parseCampoOpcoes(campoEnderecoBairro.opcoes).length > 0 ? (
+                    <select
+                      className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm"
+                      value={form.endereco.bairro}
+                      onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))}
+                    >
+                      <option value="">Selecione o bairro/povoado</option>
+                      {mergeSelectOptions(parseCampoOpcoes(campoEnderecoBairro.opcoes), form.endereco.bairro).map((opcao) => (
+                        <option key={opcao} value={opcao}>{opcao}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={form.endereco.bairro}
+                      onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))}
+                      className="h-9 w-full rounded-md border border-slate-300 px-2.5 text-sm"
+                    />
+                  )}
                 </div>
               ) : null}
               {isVisivel("enderecoLogradouro") ? (
@@ -783,7 +823,23 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
               {isVisivel("atividadePrincipal") ? (
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-600">{getLabel("atividadePrincipal", "Atividade Principal")} *</label>
-                  <Input placeholder="Atividade principal" value={form.atividadePrincipal} onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))} required />
+                  {campoAtividadePrincipal && parseCampoOpcoes(campoAtividadePrincipal.opcoes).length > 0 ? (
+                    <select
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      value={form.atividadePrincipal}
+                      onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))}
+                      required
+                    >
+                      <option value="">Selecione a atividade principal</option>
+                      {mergeSelectOptions(parseCampoOpcoes(campoAtividadePrincipal.opcoes), form.atividadePrincipal).map((opcao) => (
+                        <option key={opcao} value={opcao}>
+                          {opcao}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input placeholder="Atividade principal" value={form.atividadePrincipal} onChange={(e) => setForm((prev) => ({ ...prev, atividadePrincipal: e.target.value }))} required />
+                  )}
                 </div>
               ) : null}
 
@@ -816,8 +872,24 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
               ) : null}
               {isVisivel("enderecoBairro") ? (
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoBairro", "Bairro")} *</label>
-                  <Input placeholder="Bairro" value={form.endereco.bairro} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))} required />
+                  <label className="text-xs font-medium text-slate-600">{getLabel("enderecoBairro", "Bairro/Povoado")} *</label>
+                  {campoEnderecoBairro && parseCampoOpcoes(campoEnderecoBairro.opcoes).length > 0 ? (
+                    <select
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      value={form.endereco.bairro}
+                      onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))}
+                      required
+                    >
+                      <option value="">Selecione o bairro/povoado</option>
+                      {mergeSelectOptions(parseCampoOpcoes(campoEnderecoBairro.opcoes), form.endereco.bairro).map((opcao) => (
+                        <option key={opcao} value={opcao}>
+                          {opcao}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input placeholder="Bairro/Povoado" value={form.endereco.bairro} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: e.target.value } }))} required />
+                  )}
                 </div>
               ) : null}
               {isVisivel("enderecoLogradouro") ? (
@@ -844,7 +916,7 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
                         rows={3}
                         className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm"
                       />
-                    ) : campo.tipo === "SELECT" ? (
+                    ) : campo.tipo === "SELECT" && parseCampoOpcoes(campo.opcoes).length > 0 ? (
                       <select
                         value={form.camposCustom[campo.id] ?? ""}
                         onChange={(e) => setForm((prev) => ({ ...prev, camposCustom: { ...prev.camposCustom, [campo.id]: e.target.value } }))}
@@ -852,7 +924,7 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
                         className="h-10 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm"
                       >
                         <option value="">Selecione…</option>
-                        {parseCampoOpcoes(campo.opcoes).map((op) => (
+                        {mergeSelectOptions(parseCampoOpcoes(campo.opcoes), form.camposCustom[campo.id] ?? "").map((op) => (
                           <option key={op} value={op}>{op}</option>
                         ))}
                       </select>

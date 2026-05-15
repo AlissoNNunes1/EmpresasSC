@@ -10,6 +10,7 @@ import {
   reordenarCampos,
   type CampoEmpresaConfig,
 } from "@/services/campos.service";
+import { CampoOpcoesEditor } from "@/components/configuracoes/campo-opcoes-editor";
 import {
   Check,
   ChevronDown,
@@ -46,13 +47,13 @@ export function ConfigCampos({ campos, onReload }: Props) {
   const [novoLabel, setNovoLabel] = useState("");
   const [novoTipo, setNovoTipo] = useState<CampoEmpresaConfig["tipo"]>("TEXTO");
   const [novoObrig, setNovoObrig] = useState(false);
-  const [novasOpcoes, setNovasOpcoes] = useState("");
+  const [novasOpcoes, setNovasOpcoes] = useState<string[]>([]);
 
   // Edição inline
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editObrig, setEditObrig] = useState(false);
-  const [editOpcoes, setEditOpcoes] = useState("");
+  const [editOpcoes, setEditOpcoes] = useState<string[]>([]);
 
   // Exclusão
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
@@ -63,10 +64,10 @@ export function ConfigCampos({ campos, onReload }: Props) {
     setErro(null);
     try {
       const opcoes = novoTipo === "SELECT"
-        ? novasOpcoes.split("\n").map((o) => o.trim()).filter(Boolean)
+        ? novasOpcoes
         : undefined;
       await criarCampo({ nome: novoNome.trim(), label: novoLabel.trim(), tipo: novoTipo, obrigatorio: novoObrig, opcoes });
-      setNovoNome(""); setNovoLabel(""); setNovoTipo("TEXTO"); setNovoObrig(false); setNovasOpcoes("");
+      setNovoNome(""); setNovoLabel(""); setNovoTipo("TEXTO"); setNovoObrig(false); setNovasOpcoes([]);
       await onReload();
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro ao criar campo.");
@@ -77,7 +78,7 @@ export function ConfigCampos({ campos, onReload }: Props) {
     setEditandoId(campo.id);
     setEditLabel(campo.label);
     setEditObrig(campo.obrigatorio);
-    setEditOpcoes(parseCampoOpcoes(campo.opcoes).join("\n"));
+    setEditOpcoes(parseCampoOpcoes(campo.opcoes));
     setExcluindoId(null);
   }
 
@@ -85,9 +86,7 @@ export function ConfigCampos({ campos, onReload }: Props) {
     setSalvando(true);
     setErro(null);
     try {
-      const opcoes = campo.tipo === "SELECT" || (!campo.builtin && editOpcoes.trim())
-        ? editOpcoes.split("\n").map((o) => o.trim()).filter(Boolean)
-        : undefined;
+      const opcoes = campo.tipo === "SELECT" ? editOpcoes : undefined;
       await atualizarCampo(campo.id, { label: editLabel.trim(), obrigatorio: editObrig, opcoes: opcoes ?? null });
       setEditandoId(null);
       await onReload();
@@ -181,15 +180,8 @@ export function ConfigCampos({ campos, onReload }: Props) {
           </div>
         </div>
         {novoTipo === "SELECT" && (
-          <div className="mt-2 space-y-1">
-            <label className="text-xs font-medium text-slate-600">Opções (uma por linha)</label>
-            <textarea
-              rows={3}
-              value={novasOpcoes}
-              onChange={(e) => setNovasOpcoes(e.target.value)}
-              placeholder={"Opção 1\nOpção 2\nOpção 3"}
-              className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm"
-            />
+          <div className="mt-2">
+            <CampoOpcoesEditor values={novasOpcoes} onChange={setNovasOpcoes} label="Opções disponíveis" />
           </div>
         )}
         <Button
@@ -275,14 +267,8 @@ export function ConfigCampos({ campos, onReload }: Props) {
                       </div>
                     )}
                     {estaEditando && campo.tipo === "SELECT" && (
-                      <div className="mt-1 space-y-1">
-                        <label className="text-[10px] font-medium text-slate-500">Opções (uma por linha)</label>
-                        <textarea
-                          rows={3}
-                          value={editOpcoes}
-                          onChange={(e) => setEditOpcoes(e.target.value)}
-                          className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
-                        />
+                      <div className="mt-2">
+                        <CampoOpcoesEditor values={editOpcoes} onChange={setEditOpcoes} label="Opções do campo" />
                       </div>
                     )}
                   </td>
