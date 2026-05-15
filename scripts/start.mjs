@@ -3,35 +3,20 @@ import { createServer as createHttp, request as makeRequest } from "http";
 import { createServer as createTcp, Socket } from "net";
 import { networkInterfaces } from "os";
 
-// ── build ─────────────────────────────────────────────────────────────────────
-
-console.log("🔨 Compilando aplicação (next build)...\n");
-const buildResult = spawnSync("npx", ["next", "build"], {
-  stdio: "inherit",
-  shell: true,
-});
-
-if (buildResult.status !== 0) {
-  console.error("\n❌ Erro na compilação. Abortando...");
-  process.exit(1);
-}
-
-console.log("\n✓ Compilação concluída com sucesso\n");
-
 // ── utilidades ────────────────────────────────────────────────────────────────
 
-function isPortAvailable(port) {
+function isPortAvailable(port, host = "127.0.0.1") {
   return new Promise((resolve) => {
     const s = createTcp();
     s.once("error", () => resolve(false));
     s.once("listening", () => { s.close(); resolve(true); });
-    s.listen(port);
+    s.listen(port, host);
   });
 }
 
-async function findPort(start = 3000) {
+async function findPort(start = 3000, host = "127.0.0.1") {
   let port = start;
-  while (!(await isPortAvailable(port))) {
+  while (!(await isPortAvailable(port, host))) {
     console.log(`Porta ${port} em uso, tentando ${port + 1}...`);
     port++;
   }
@@ -66,16 +51,48 @@ function waitForServer(port, timeoutMs = 60_000) {
 
 // ── portas ────────────────────────────────────────────────────────────────────
 
-const publicPort   = await findPort(3000);
-const internalPort = await findPort(publicPort + 1);
+const publicPort   = await findPort(3000, "0.0.0.0");
+const internalPort = await findPort(4000, "127.0.0.1");
 const localIP      = getLocalIP();
+const nextAuthUrl  = `http://localhost:${publicPort}`;
+
+process.env.NEXTAUTH_URL = nextAuthUrl;
+process.env.NEXTAUTH_URL_INTERNAL = nextAuthUrl;
+
+// ── build ─────────────────────────────────────────────────────────────────────
+
+console.log("🔨 Compilando aplicação (next build)...\n");
+const buildResult = spawnSync("npx", ["next", "build"], {
+  stdio: "inherit",
+  shell: true,
+  env: {
+    ...process.env,
+    NEXTAUTH_URL: nextAuthUrl,
+    NEXTAUTH_URL_INTERNAL: nextAuthUrl,
+  },
+});
+
+if (buildResult.status !== 0) {
+  console.error("\n❌ Erro na compilação. Abortando...");
+  process.exit(1);
+}
+
+console.log("\n✓ Compilação concluída com sucesso\n");
 
 // ── Next.js ───────────────────────────────────────────────────────────────────
 
 // Roda em localhost (127.0.0.1) para não entrar em conflito com o proxy
 const nextProc = spawn(
   `npx next start -p ${internalPort} --hostname 127.0.0.1`,
-  { shell: true, stdio: ["inherit", "pipe", "pipe"] },
+  {
+    env: {
+      ...process.env,
+      NEXTAUTH_URL: nextAuthUrl,
+      NEXTAUTH_URL_INTERNAL: nextAuthUrl,
+    },
+    shell: true,
+    stdio: ["inherit", "pipe", "pipe"],
+  },
 );
 
 const filterLine = (line) => {
