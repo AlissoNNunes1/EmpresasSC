@@ -6,7 +6,9 @@ const PUBLIC_PATHS = ["/login", "/api/auth"];
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  if (process.env.NODE_ENV === "production") {
+  const forceHttps = process.env.FORCE_HTTPS === "true";
+
+  if (forceHttps) {
     const forwardedProto = request.headers.get("x-forwarded-proto");
     if (forwardedProto !== "https") {
       const secureUrl = new URL(request.url);

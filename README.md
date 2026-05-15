@@ -82,9 +82,6 @@ DATABASE_URL="file:./prisma/dev.db"
 
 # Segredo do NextAuth — troque em produção
 NEXTAUTH_SECRET="troque-esta-chave-em-producao"
-
-# URL base da aplicação
-NEXTAUTH_URL="http://localhost:3000"
 ```
 
 ---
@@ -145,9 +142,8 @@ prisma/
 Antes de implantar em produção:
 
 1. Defina `NEXTAUTH_SECRET` com um valor aleatório e seguro (`openssl rand -base64 32`)
-2. Ajuste `NEXTAUTH_URL` para o domínio público da aplicação
-3. Considere migrar de SQLite para PostgreSQL para ambientes com múltiplos usuários simultâneos
-4. Configure backups regulares do arquivo de banco de dados
+2. Considere migrar de SQLite para PostgreSQL para ambientes com múltiplos usuários simultâneos
+3. Configure backups regulares do arquivo de banco de dados
 
 ---
 
