@@ -1,25 +1,25 @@
 "use client";
 
+import { CampoOpcoesEditor } from "@/components/configuracoes/campo-opcoes-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  atualizarCampo,
-  criarCampo,
-  excluirCampo,
-  parseCampoOpcoes,
-  reordenarCampos,
-  type CampoEmpresaConfig,
+    atualizarCampo,
+    criarCampo,
+    excluirCampo,
+    parseCampoOpcoes,
+    reordenarCampos,
+    type CampoEmpresaConfig,
 } from "@/services/campos.service";
-import { CampoOpcoesEditor } from "@/components/configuracoes/campo-opcoes-editor";
 import {
-  Check,
-  ChevronDown,
-  ChevronUp,
-  GripVertical,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
+    Check,
+    ChevronDown,
+    ChevronUp,
+    GripVertical,
+    Pencil,
+    Plus,
+    Trash2,
+    X,
 } from "lucide-react";
 import { useState } from "react";
 

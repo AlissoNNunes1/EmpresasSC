@@ -6,11 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { getCamposVisiveis } from "@/lib/services/campo/query";
 import { findEmpresas } from "@/lib/services/empresa/query";
 import { filtrosEmpresaSchema } from "@/lib/validations/empresa";
+import type { CampoEmpresaConfig } from "@/services/campos.service";
 import type { CategoriaOption } from "@/types/empresa";
 import { PapelUsuario } from "@prisma/client";
 import { Building2, Search } from "lucide-react";
 import { getServerSession } from "next-auth";
-import type { CampoEmpresaConfig } from "@/services/campos.service";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

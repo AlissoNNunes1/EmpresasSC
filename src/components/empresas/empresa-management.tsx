@@ -10,16 +10,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { parseCampoOpcoes, type CampoEmpresaConfig } from "@/services/campos.service";
 import type { PapelUsuario } from "@prisma/client";
 import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Eye,
-  FileSpreadsheet,
-  FileText,
-  Loader2,
-  Pencil,
-  Plus,
-  Trash2,
+    AlertCircle,
+    ArrowLeft,
+    CheckCircle2,
+    Eye,
+    FileSpreadsheet,
+    FileText,
+    Loader2,
+    Pencil,
+    Plus,
+    Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
