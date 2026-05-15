@@ -1,6 +1,6 @@
-import { createServer as createTcp, Socket } from "net";
-import { createServer as createHttp, request as makeRequest } from "http";
 import { spawn, spawnSync } from "child_process";
+import { createServer as createHttp, request as makeRequest } from "http";
+import { createServer as createTcp, Socket } from "net";
 import { networkInterfaces } from "os";
 
 // ── build ─────────────────────────────────────────────────────────────────────
