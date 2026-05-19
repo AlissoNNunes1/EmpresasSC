@@ -63,26 +63,51 @@ type RowMap = {
 };
 
 const HEADER_ALIASES: Record<keyof RowMap, string[]> = {
-  estabelecimento: ["estabelecimento", "nome do estabelecimento", "nome estabelecimento"],
-  razaoSocial: ["razaosocial", "razao social", "razao_social", "razao", "empresa", "nomeempresa"],
-  nomeFantasia: ["nomefantasia", "nome fantasia", "fantasia"],
-  cnpj: ["cnpj", "cnpjcpf", "cnpj cpf"],
-  categoria: ["categoria", "categorianome", "categoria nome"],
+  estabelecimento: ["estabelecimento", "nome do estabelecimento", "nome estabelecimento", "nome"],
+  razaoSocial: ["razaosocial", "razao social", "razao_social", "razao", "empresa", "nomeempresa", "nome empresarial", "denominacao", "razao social nome empresarial"],
+  nomeFantasia: ["nomefantasia", "nome fantasia", "fantasia", "nome comercial", "nome de fantasia"],
+  cnpj: ["cnpj", "cnpjcpf", "cnpj cpf", "cnpj cpf do socio", "documento", "doc", "inscricao", "nr documento", "numero documento"],
+  categoria: ["categoria", "categorianome", "categoria nome", "setor", "ramo", "ramo de atividade", "segmento"],
   categoriaId: ["categoriaid", "categoria id", "idcategoria"],
-  atividadePrincipal: ["atividadeprincipal", "atividade principal", "atividade", "cnae"],
-  numeroEmpregados: ["numeroempregados", "numero empregados", "empregados", "funcionarios", "qtdfuncionarios", "qtd empregados"],
-  numeroEmpregadosClt: ["numero de empregados clt", "clt", "empregados clt"],
-  numeroEmpregadosFamilia: ["numero de empregados familia", "familia", "família", "empregados familia", "empregados família"],
-  porte: ["porte"],
-  situacao: ["situacao", "status"],
-  cep: ["cep"],
-  bairro: ["bairro", "bairro povoado", "bairro / povoado"],
-  logradouro: ["logradouro", "endereco", "rua"],
-  responsavelNome: ["responsavel", "responsavelnome", "responsavel nome", "proprietario", "contatonome", "proprietario gerente rh", "proprietario / gerente / rh"],
-  responsavelCpf: ["responsavelcpf", "responsavel cpf", "cpfresponsavel"],
-  responsavelContato: ["responsavelcontato", "responsavel contato", "telefone", "contato"],
-  responsavelTipo: ["responsaveltipo", "responsavel tipo", "tiporesponsavel"],
+  atividadePrincipal: ["atividadeprincipal", "atividade principal", "atividade", "cnae", "cnae principal", "descricao atividade", "descricao da atividade", "atividade economica"],
+  numeroEmpregados: ["numeroempregados", "numero empregados", "empregados", "funcionarios", "qtdfuncionarios", "qtd empregados", "nr empregados", "no empregados", "n empregados", "total empregados", "total funcionarios", "qtd funcionarios", "quantidade funcionarios", "quantidade empregados", "nr funcionarios"],
+  numeroEmpregadosClt: ["numero de empregados clt", "clt", "empregados clt", "funcionarios clt"],
+  numeroEmpregadosFamilia: ["numero de empregados familia", "familia", "família", "empregados familia", "empregados família", "mao de obra familiar", "familiar"],
+  porte: ["porte", "porte empresa", "tamanho", "classificacao", "classificacao porte"],
+  situacao: ["situacao", "status", "situacao cadastral", "situacao da empresa", "ativo"],
+  cep: ["cep", "codigo postal", "cod postal"],
+  bairro: ["bairro", "bairro povoado", "bairro / povoado", "bairro localidade", "localidade"],
+  logradouro: ["logradouro", "endereco", "rua", "endereço", "rua av", "rua avenida", "logradouro numero", "logradouro e numero"],
+  responsavelNome: ["responsavel", "responsavelnome", "responsavel nome", "proprietario", "contatonome", "proprietario gerente rh", "proprietario / gerente / rh", "socio", "nome do socio", "representante", "nome representante"],
+  responsavelCpf: ["responsavelcpf", "responsavel cpf", "cpfresponsavel", "cpf socio", "cpf do socio", "cpf representante"],
+  responsavelContato: ["responsavelcontato", "responsavel contato", "telefone", "contato", "celular", "fone", "tel", "whatsapp", "email", "e-mail"],
+  responsavelTipo: ["responsaveltipo", "responsavel tipo", "tiporesponsavel", "tipo socio", "cargo"],
 };
+
+// ── similaridade de bigrama (Dice) ────────────────────────────────────────────
+// Usada como fallback quando não há correspondência exata nos aliases.
+
+function bigramSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+
+  const bigrams = (s: string): Map<string, number> => {
+    const m = new Map<string, number>();
+    for (let i = 0; i < s.length - 1; i++) {
+      const bg = s.slice(i, i + 2);
+      m.set(bg, (m.get(bg) ?? 0) + 1);
+    }
+    return m;
+  };
+
+  const bA = bigrams(a);
+  const bB = bigrams(b);
+  let inter = 0;
+  for (const [bg, cnt] of bA) inter += Math.min(cnt, bB.get(bg) ?? 0);
+  return (2 * inter) / (a.length - 1 + (b.length - 1));
+}
+
+const FUZZY_THRESHOLD = 0.72;
 
 function normalizeHeader(value: string): string {
   return value
@@ -123,22 +148,49 @@ function normalizeSheetHeader(value: unknown): string {
 }
 
 function parseNumber(value: string): number {
-  const normalized = value.replace(/\./g, "").replace(",", ".");
+  // Ignora valores não numéricos comuns em planilhas
+  const cleaned = value.trim();
+  if (!cleaned || /^[-–—nN\/\s]+$/.test(cleaned)) return 0;
+  // Detecta se o separador decimal é vírgula ou ponto
+  const hasBothSeparators = cleaned.includes(".") && cleaned.includes(",");
+  const normalized = hasBothSeparators
+    ? cleaned.replace(/\./g, "").replace(",", ".")
+    : cleaned.replace(",", ".");
   const num = Number(normalized);
   return Number.isFinite(num) ? Math.max(0, Math.trunc(num)) : 0;
 }
 
+// Mapa de abreviações legais brasileiras e sinônimos comuns de porte
+const PORTE_MAP: Record<string, PorteEmpresa> = {
+  mei: "MEI",
+  "microempreendedor individual": "MEI",
+  ei: "MEI",       // Empresário Individual (sem empregados → MEI)
+  eia: "MEI",
+  me: "MICRO",     // Microempresa
+  micro: "MICRO",
+  microempresa: "MICRO",
+  epp: "PEQUENA",  // Empresa de Pequeno Porte
+  pequena: "PEQUENA",
+  pequeno: "PEQUENA",
+  "empresa de pequeno porte": "PEQUENA",
+  media: "MEDIA",
+  medio: "MEDIA",
+  "empresa de medio porte": "MEDIA",
+  grande: "GRANDE",
+  ge: "GRANDE",    // Grande Empresa
+  eg: "GRANDE",
+  "empresa de grande porte": "GRANDE",
+};
+
 function parsePorte(value: string, empregados: number): PorteEmpresa {
   const raw = normalizeHeader(value).replace(/\s+/g, "");
+  const rawFull = normalizeHeader(value);
 
-  if (raw === "mei") return "MEI";
-  if (raw === "micro") return "MICRO";
-  if (raw === "pequena" || raw === "pequeno") return "PEQUENA";
-  if (raw === "media" || raw === "medio") return "MEDIA";
-  if (raw === "grande") return "GRANDE";
+  const fromMap = PORTE_MAP[raw] ?? PORTE_MAP[rawFull];
+  if (fromMap) return fromMap;
 
-  // Classificação automática quando o porte não vem no arquivo.
-  if (empregados <= 1) return "MEI";
+  // Classificação automática pelo número de empregados
+  if (empregados === 0) return "MEI";
   if (empregados <= 9) return "MICRO";
   if (empregados <= 49) return "PEQUENA";
   if (empregados <= 249) return "MEDIA";
@@ -148,18 +200,32 @@ function parsePorte(value: string, empregados: number): PorteEmpresa {
 function parseSituacao(value: string): SituacaoEmpresa {
   const raw = normalizeHeader(value).replace(/\s+/g, "");
 
-  if (raw === "inativa" || raw === "inativo") return "INATIVA";
-  if (raw === "suspensa" || raw === "suspenso") return "SUSPENSA";
-  if (raw === "encerrada" || raw === "encerrado") return "ENCERRADA";
+  if (["inativa", "inativo", "0", "false", "nao", "nao ativa"].includes(raw)) return "INATIVA";
+  if (["suspensa", "suspenso", "suspensao"].includes(raw)) return "SUSPENSA";
+  if (["encerrada", "encerrado", "baixada", "baixado", "cancelada"].includes(raw)) return "ENCERRADA";
   return "ATIVA";
 }
 
 function parseResponsavelTipo(value: string): TipoResponsavel {
   const raw = normalizeHeader(value).replace(/\s+/g, "");
 
-  if (raw === "gerente") return "GERENTE";
-  if (raw === "rh") return "RH";
+  if (["gerente", "gestor", "diretor", "administrador"].includes(raw)) return "GERENTE";
+  if (["rh", "recursos humanos", "rh dp"].includes(raw)) return "RH";
   return "PROPRIETARIO";
+}
+
+// ── validação de CNPJ (dígitos verificadores) ─────────────────────────────────
+
+function isValidCnpj(cnpj: string): boolean {
+  if (cnpj.length !== 14 || /^(\d)\1+$/.test(cnpj)) return false;
+  const calc = (s: string, weights: number[]) => {
+    const sum = weights.reduce((acc, w, i) => acc + w * Number(s[i]), 0);
+    const rem = sum % 11;
+    return rem < 2 ? 0 : 11 - rem;
+  };
+  const d1 = calc(cnpj, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const d2 = calc(cnpj, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return d1 === Number(cnpj[12]) && d2 === Number(cnpj[13]);
 }
 
 function mapRow(raw: Record<string, unknown>): RowMap {
@@ -169,17 +235,40 @@ function mapRow(raw: Record<string, unknown>): RowMap {
     const normalized = normalizeHeader(header);
     const text = asString(value);
 
-    if (!text) {
-      continue;
-    }
+    if (!text) continue;
 
+    // 1. Correspondência exata nos aliases
+    let matched = false;
     for (const [target, aliases] of Object.entries(HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
       if (aliases.includes(normalized)) {
         mapped[target] = text;
+        matched = true;
         break;
       }
     }
+    if (matched) continue;
+
+    // 2. Correspondência fuzzy (bigrama Dice ≥ threshold) como fallback
+    let bestTarget: keyof RowMap | null = null;
+    let bestScore = 0;
+    for (const [target, aliases] of Object.entries(HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
+      for (const alias of aliases) {
+        const score = bigramSimilarity(normalized, alias);
+        if (score >= FUZZY_THRESHOLD && score > bestScore) {
+          bestScore = score;
+          bestTarget = target as keyof RowMap;
+        }
+      }
+    }
+    if (bestTarget && !mapped[bestTarget]) {
+      mapped[bestTarget] = text;
+    }
   }
+
+  // 3. Fallback: razaoSocial → estabelecimento e vice-versa
+  if (!mapped.razaoSocial && mapped.estabelecimento) mapped.razaoSocial = mapped.estabelecimento;
+  if (!mapped.estabelecimento && mapped.razaoSocial) mapped.estabelecimento = mapped.razaoSocial;
+  if (!mapped.nomeFantasia && mapped.razaoSocial) mapped.nomeFantasia = mapped.razaoSocial;
 
   return mapped;
 }
@@ -188,11 +277,27 @@ type ParsedSheetRow = Record<string, unknown>;
 
 function isLikelyHeaderRow(row: unknown[]): boolean {
   const normalizedCells = row.map((cell) => normalizeSheetHeader(cell));
-  const hasEstabelecimento = normalizedCells.includes("estabelecimento");
-  const hasDocumento = normalizedCells.includes("cnpj cpf") || normalizedCells.includes("cnpj") || normalizedCells.includes("cpf");
-  const hasAtividade = normalizedCells.includes("atividade principal") || normalizedCells.includes("atividade");
 
-  return hasEstabelecimento && hasDocumento && hasAtividade;
+  const hasEstabelecimento = normalizedCells.includes("estabelecimento");
+  const hasRazaoSocial = normalizedCells.some((c) =>
+    ["razao social", "razaosocial", "razao", "empresa", "nomeempresa"].includes(c)
+  );
+  const hasDocumento =
+    normalizedCells.includes("cnpj cpf") ||
+    normalizedCells.includes("cnpj") ||
+    normalizedCells.includes("cpf");
+  const hasAtividade =
+    normalizedCells.includes("atividade principal") ||
+    normalizedCells.includes("atividade") ||
+    normalizedCells.includes("cnae");
+
+  // Formato completo (planilha municipal): estabelecimento + documento + atividade
+  if (hasEstabelecimento && hasDocumento && hasAtividade) return true;
+
+  // Formato simplificado: razão social (ou estabelecimento) + documento
+  if ((hasRazaoSocial || hasEstabelecimento) && hasDocumento) return true;
+
+  return false;
 }
 
 function findHeaderRowIndex(matrix: unknown[][]): number {
@@ -221,6 +326,7 @@ function hasRowNumberColumn(row: ParsedSheetRow): boolean {
 
 function isLikelyDataRow(row: ParsedSheetRow): boolean {
   const estabelecimento = asString(row.estabelecimento ?? row["estabelecimento"] ?? "");
+  const razaoSocial = asString(row["razao social"] ?? row["razaosocial"] ?? row["razao"] ?? row["empresa"] ?? "");
   const atividade = asString(row["atividade principal"] ?? row["atividade"] ?? "");
   const documento = asString(row["cnpj cpf"] ?? row["cnpj"] ?? row["cpf"] ?? "");
   const endereco = asString(row.endereco ?? row["endereco"] ?? "");
@@ -233,17 +339,18 @@ function isLikelyDataRow(row: ParsedSheetRow): boolean {
     return false;
   }
 
-  const hasMainFields = Boolean(estabelecimento || atividade || documento || endereco || bairro);
+  const hasMainFields = Boolean(estabelecimento || razaoSocial || atividade || documento || endereco || bairro);
   if (!hasMainFields) {
     return false;
   }
 
   // Evita subtotal por bairro onde "estabelecimento" vira um número e não há documento.
-  if (/^\d+$/.test(estabelecimento) && !onlyDigits(documento)) {
+  const mainName = estabelecimento || razaoSocial;
+  if (/^\d+$/.test(mainName) && !onlyDigits(documento)) {
     return false;
   }
 
-  const normalizedMain = normalizeSemanticValue(estabelecimento);
+  const normalizedMain = normalizeSemanticValue(mainName);
   if (
     normalizedMain === "total" ||
     normalizedMain === "povoados" ||
@@ -308,17 +415,50 @@ function extractRowsFromSheet(sheet: XLSX.WorkSheet): ParsedSheetRow[] {
     .filter((row) => isLikelyDataRow(row));
 }
 
+// ── auto-detecção de coluna CNPJ por conteúdo ────────────────────────────────
+// Se nenhuma coluna do cabeçalho foi reconhecida como CNPJ, varre as colunas
+// e elege a que tem mais valores com 11 ou 14 dígitos.
+
+function inferCnpjColumn(rows: ParsedSheetRow[]): string | null {
+  if (!rows.length) return null;
+
+  const candidates = Object.keys(rows[0]);
+  const scores: Record<string, number> = {};
+
+  for (const col of candidates) {
+    let hits = 0;
+    for (const row of rows.slice(0, 20)) {
+      const d = onlyDigits(asString(row[col]));
+      if (d.length === 14 || d.length === 11) hits++;
+    }
+    scores[col] = hits;
+  }
+
+  const best = candidates.reduce((a, b) => (scores[a] >= scores[b] ? a : b), candidates[0]);
+  return best && scores[best] >= 2 ? best : null;
+}
+
+function applyFallbackCnpjColumn(rows: ParsedSheetRow[]): ParsedSheetRow[] {
+  // Verifica se alguma linha já tem a chave "cnpj" preenchida
+  const alreadyMapped = rows.some((r) => asString(r["cnpj"]).trim());
+  if (alreadyMapped) return rows;
+
+  const col = inferCnpjColumn(rows);
+  if (!col || col === "cnpj") return rows;
+
+  return rows.map((row) => ({ ...row, cnpj: row[col] }));
+}
+
 export function parseImportFile(buffer: ArrayBuffer): Record<string, unknown>[] {
-  const workbook = XLSX.read(buffer, { type: "array" });
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: false, raw: false });
   const allRows: ParsedSheetRow[] = [];
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
-    if (!sheet) {
-      continue;
-    }
+    if (!sheet) continue;
 
-    allRows.push(...extractRowsFromSheet(sheet));
+    const sheetRows = extractRowsFromSheet(sheet);
+    allRows.push(...applyFallbackCnpjColumn(sheetRows));
   }
 
   return allRows;
@@ -441,25 +581,32 @@ function parseNumeroEmpregados(row: RowMap): number {
 function parseDocumentoFiscal(value: string): string | null {
   const raw = normalizeSemanticValue(value);
 
-  if (!raw || raw === "sem cnpj" || raw === "sem cpf" || raw === "nao possui" || raw === "não possui") {
-    return null;
+  const AUSENTE = ["sem cnpj", "sem cpf", "nao possui", "nao informado", "s n", "sn", "n a", "na", "-", "", "0"];
+  if (AUSENTE.includes(raw)) return null;
+
+  let digits = onlyDigits(value);
+
+  // Excel às vezes armazena CNPJ como número e remove zeros à esquerda.
+  // Ex.: "19577407000104" vira 19577407000104 (14 dígitos — OK)
+  //      "4477000100" pode vir de "00.044.770/0001-00" → pad para 14
+  if (digits.length > 0 && digits.length < 11) {
+    // Tenta recuperar como CNPJ com zeros à esquerda
+    const padded = digits.padStart(14, "0");
+    if (isValidCnpj(padded)) return padded;
   }
 
-  const digits = onlyDigits(value);
+  // CNPJ com um zero extra no início (planilhas legadas)
+  if (digits.length === 15 && digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
 
-  if (digits.length === 11 || digits.length === 14) {
+  if (digits.length === 14) {
+    // Aceita mesmo se inválido (ex.: CNPJs legados ou mal digitados) — avisa via log mas importa
     return digits;
   }
 
-  // Alguns levantamentos usam zero à esquerda extra no CNPJ.
-  if (digits.length === 15 && digits.startsWith("0")) {
-    const normalized = digits.slice(1);
-    if (normalized.length === 14) {
-      return normalized;
-    }
-  }
+  if (digits.length === 11) return digits; // CPF
 
-  // Valor malformado cai para documento sintético em resolveDocumentoFiscal.
   return null;
 }
 
