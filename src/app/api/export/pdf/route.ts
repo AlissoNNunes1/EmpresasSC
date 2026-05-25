@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Filtros invalidos", details: parsedFilters.error.flatten() }, { status: 400 });
   }
 
-  const empresas = await findEmpresas(parsedFilters.data);
+  const segmentoSlug = request.nextUrl.searchParams.get("segmentoSlug") ?? undefined;
+  const empresas = await findEmpresas(parsedFilters.data, segmentoSlug);
   const generatedAt = new Date();
   const sourceLabel = request.nextUrl.searchParams.get("source") === "relatorios" ? "Relatórios" : "Empresas";
   const pdfBytes = await toPdfBuffer(

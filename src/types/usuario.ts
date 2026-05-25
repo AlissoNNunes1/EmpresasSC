@@ -1,3 +1,5 @@
+export type SegmentoBasico = { id: number; nome: string; cor: string | null; slug?: string };
+
 export type UsuarioSistema = {
   id: number;
   nome: string;
@@ -6,6 +8,7 @@ export type UsuarioSistema = {
   status: "ATIVO" | "INATIVO";
   ultimoAcesso: string | null;
   criadoEm: string;
+  segmentos: SegmentoBasico[];  // [] = acesso global
 };
 
 export type UsuarioFiltros = {
@@ -20,6 +23,7 @@ export type UsuarioPayload = {
   role: "ADMIN" | "ANALISTA" | "VISUALIZADOR";
   status: "ATIVO" | "INATIVO";
   senha?: string;
+  segmentoIds?: number[];  // [] = acesso global
 };
 
 //   __  ____ ____ _  _ 

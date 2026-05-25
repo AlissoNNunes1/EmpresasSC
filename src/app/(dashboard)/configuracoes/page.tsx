@@ -25,10 +25,11 @@ export default async function ConfiguracoesPage() {
     );
   }
 
-  const [config, categorias, campos] = await Promise.all([
+  const [config, categorias, campos, segmentos] = await Promise.all([
     getConfiguracaoSistema(),
     prisma.categoria.findMany({ orderBy: { nome: "asc" } }),
     getOrInitCampos(),
+    prisma.segmento.findMany({ orderBy: { ordem: "asc" } }),
   ]);
 
   return (
@@ -88,6 +89,16 @@ export default async function ConfiguracoesPage() {
           opcoes: c.opcoes,
           criadoEm: c.criadoEm.toISOString(),
           atualizadoEm: c.atualizadoEm.toISOString(),
+        }))}
+        initialSegmentos={segmentos.map((s) => ({
+          id: s.id,
+          nome: s.nome,
+          slug: s.slug,
+          descricao: s.descricao,
+          cor: s.cor,
+          icone: s.icone,
+          ativo: s.ativo,
+          ordem: s.ordem,
         }))}
       />
     </main>

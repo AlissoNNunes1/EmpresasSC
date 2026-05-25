@@ -65,6 +65,10 @@ type EmpresaFormState = {
   endereco: { cep: string; bairro: string; logradouro: string };
   responsaveis: Responsavel[];
   camposCustom: Record<number, string>;
+  // Coordenadas: null = deixar geocodificar pelo CEP; number = coordenada manual
+  lat: number | null;
+  lng: number | null;
+  coordsManual: boolean; // controla se o usuário quer inserir manualmente
 };
 
 type BrasilApiCnpjResponse = {
@@ -107,6 +111,9 @@ function createEmptyForm(): EmpresaFormState {
     endereco: { cep: "", bairro: "", logradouro: "" },
     responsaveis: [{ nome: "", tipo: "PROPRIETARIO", cpf: "", contato: "" }],
     camposCustom: {},
+    lat: null,
+    lng: null,
+    coordsManual: false,
   };
 }
 
@@ -237,8 +244,8 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
         const errorMessage =
           res.status === 404
             ? errorData?.error ?? "CNPJ não encontrado na Receita Federal."
-            : res.status === 429
-              ? errorData?.error ?? "Muitas requisições. Aguarde alguns segundos e tente novamente."
+            : res.status === 503
+              ? errorData?.error ?? "Consulta de CNPJ temporariamente indisponível. Preencha os dados manualmente."
               : errorData?.error ?? "Falha ao consultar. Verifique o CNPJ e tente novamente.";
         setCnpjErro(errorMessage);
         setConsultando(false);
@@ -285,6 +292,9 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
                 }))
               : [{ nome: "", tipo: "PROPRIETARIO", cpf: "", contato: "" }],
           camposCustom: {},
+          lat: null,
+          lng: null,
+          coordsManual: false,
         });
 
         setCnpjConsultado(true);
@@ -337,6 +347,7 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
     setCnpjConsultado(false);
     const customVals: Record<number, string> = {};
     for (const v of empresa.camposCustom ?? []) customVals[v.campoId] = v.valor;
+    const empAny = empresa as typeof empresa & { lat?: number | null; lng?: number | null };
     setForm({
       razaoSocial: empresa.razaoSocial,
       nomeFantasia: empresa.nomeFantasia ?? "",
@@ -356,6 +367,9 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
           ? empresa.responsaveis.map((item) => ({ nome: item.nome, tipo: item.tipo, cpf: item.cpf, contato: item.contato }))
           : [{ nome: "", tipo: "PROPRIETARIO", cpf: "", contato: "" }],
       camposCustom: customVals,
+      lat: empAny.lat ?? null,
+      lng: empAny.lng ?? null,
+      coordsManual: empAny.lat != null && empAny.lng != null,
     });
   }
 
@@ -420,6 +434,10 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
       camposCustom: Object.entries(form.camposCustom)
         .filter(([, valor]) => valor?.trim())
         .map(([campoId, valor]) => ({ campoId: Number(campoId), valor: valor.trim() })),
+      // Envia coords só se manual; null explícito limpa coords existentes
+      ...(form.coordsManual && form.lat != null && form.lng != null
+        ? { lat: form.lat, lng: form.lng }
+        : { lat: null, lng: null }),
     };
 
     const endpoint = mode === "edit" && editingId ? `/api/empresas/${editingId}` : "/api/empresas";
@@ -940,6 +958,63 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
                 ))}
               </div>
             ) : null}
+
+            {/* Localização no mapa */}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-slate-900">Localização no mapa</h4>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={form.coordsManual}
+                    onChange={(e) => setForm((prev) => ({
+                      ...prev,
+                      coordsManual: e.target.checked,
+                      lat: e.target.checked ? prev.lat : null,
+                      lng: e.target.checked ? prev.lng : null,
+                    }))}
+                  />
+                  Inserir coordenadas manualmente
+                </label>
+              </div>
+
+              {!form.coordsManual ? (
+                <p className="mt-1.5 text-xs text-slate-500">
+                  As coordenadas serão obtidas automaticamente pelo CEP ao salvar.
+                  {form.lat != null && (
+                    <span className="ml-1 font-medium text-emerald-700">
+                      ✓ Geocodificada ({form.lat.toFixed(5)}, {form.lng?.toFixed(5)})
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-600">Latitude</label>
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="-10.9167"
+                      value={form.lat ?? ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, lat: e.target.value ? Number(e.target.value) : null }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-600">Longitude</label>
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="-37.0500"
+                      value={form.lng ?? ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, lng: e.target.value ? Number(e.target.value) : null }))}
+                    />
+                  </div>
+                  <p className="col-span-2 text-[11px] text-slate-400">
+                    Use decimais. Ex: Latitude -10.9167, Longitude -37.0500 (São Cristóvão/SE)
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">

@@ -6,11 +6,14 @@ import * as XLSX from "xlsx";
 
 type ImportMode = "UPSERT" | "CREATE_ONLY" | "UPDATE_ONLY";
 
+export type CampoImportDef = { id: number; nome: string; label: string; tipo: string };
+
 type ImportOptions = {
   mode: ImportMode;
   dryRun: boolean;
   usuarioRole: PapelUsuario;
   mergeDecisions?: Record<string, Record<string, "ARQUIVO" | "BANCO">>;
+  camposCustom?: CampoImportDef[];  // campos customizados para aliases dinâmicos
 };
 
 type ImportError = {
@@ -228,7 +231,12 @@ function isValidCnpj(cnpj: string): boolean {
   return d1 === Number(cnpj[12]) && d2 === Number(cnpj[13]);
 }
 
-function mapRow(raw: Record<string, unknown>): RowMap {
+// Chave usada no RowMap para campos customizados: "customcampo_<id>"
+function customCampoKey(id: number): string {
+  return `customcampo_${id}`;
+}
+
+function mapRow(raw: Record<string, unknown>, camposCustom: CampoImportDef[] = []): RowMap {
   const mapped: RowMap = {};
 
   for (const [header, value] of Object.entries(raw)) {
@@ -262,6 +270,20 @@ function mapRow(raw: Record<string, unknown>): RowMap {
     }
     if (bestTarget && !mapped[bestTarget]) {
       mapped[bestTarget] = text;
+      continue;
+    }
+
+    // 3. Campos customizados dinâmicos — label e nome do banco como aliases
+    for (const campo of camposCustom) {
+      const campoAliases = [
+        normalizeHeader(campo.label),
+        normalizeHeader(campo.nome),
+      ];
+      const key = customCampoKey(campo.id);
+      if (campoAliases.includes(normalized) || campoAliases.some((a) => bigramSimilarity(normalized, a) >= FUZZY_THRESHOLD)) {
+        (mapped as Record<string, string>)[key] = text;
+        break;
+      }
     }
   }
 
@@ -449,7 +471,7 @@ function applyFallbackCnpjColumn(rows: ParsedSheetRow[]): ParsedSheetRow[] {
   return rows.map((row) => ({ ...row, cnpj: row[col] }));
 }
 
-export function parseImportFile(buffer: ArrayBuffer): Record<string, unknown>[] {
+export function parseImportFile(buffer: ArrayBuffer, camposCustom: CampoImportDef[] = []): Record<string, unknown>[] {
   const workbook = XLSX.read(buffer, { type: "array", cellDates: false, raw: false });
   const allRows: ParsedSheetRow[] = [];
 
@@ -461,7 +483,11 @@ export function parseImportFile(buffer: ArrayBuffer): Record<string, unknown>[] 
     allRows.push(...applyFallbackCnpjColumn(sheetRows));
   }
 
-  return allRows;
+  // Aplica mapeamento de campos customizados a cada linha
+  return allRows.map((row) => {
+    const mapped = mapRow(row as Record<string, unknown>, camposCustom);
+    return { ...row, ...mapped };
+  });
 }
 
 type CategoriaCacheItem = {
@@ -834,8 +860,9 @@ function applyMergeDecisions(
 
 export async function importarEmpresasInteligente(
   rows: Record<string, unknown>[],
-  options: ImportOptions
+  options: ImportOptions,
 ): Promise<ImportResult> {
+  const camposCustomDefs = options.camposCustom ?? [];
   const result: ImportResult = {
     totalLinhas: rows.length,
     processadas: 0,
@@ -860,7 +887,18 @@ export async function importarEmpresasInteligente(
     const linha = i + 2;
 
     try {
-      const mapped = mapRow(rows[i]);
+      const rawRow = rows[i] as Record<string, unknown>;
+      const mapped = mapRow(rawRow, camposCustomDefs);
+
+      // Extrai valores de campos customizados presentes na linha
+      const valoresCamposCustom: Array<{ campoId: number; valor: string }> = [];
+      for (const campo of camposCustomDefs) {
+        const key = customCampoKey(campo.id);
+        const valor = asString(rawRow[key] ?? (mapped as Record<string, unknown>)[key]);
+        if (valor.trim()) {
+          valoresCamposCustom.push({ campoId: campo.id, valor: valor.trim() });
+        }
+      }
 
       const documentoFiscal = resolveDocumentoFiscal(mapped);
       const cnpj = documentoFiscal.documento;
@@ -989,6 +1027,10 @@ export async function importarEmpresasInteligente(
             situacao: payload.situacao,
             endereco: { create: payload.endereco },
             responsaveis: { create: [payload.responsavel] },
+            // Campos customizados importados dinamicamente
+            camposCustom: valoresCamposCustom.length > 0
+              ? { create: valoresCamposCustom }
+              : undefined,
           },
         });
 

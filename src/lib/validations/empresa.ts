@@ -72,10 +72,14 @@ export const empresaSchema = z.object({
   situacao: enumSituacao,
   endereco: enderecoSchema,
   responsaveis: z.array(pessoaSchema).min(1),
+  // Coordenadas opcionais — se fornecidas, pulam o geocoding automático
+  lat: z.number().optional().nullable(),
+  lng: z.number().optional().nullable(),
 });
 
 export const filtrosEmpresaSchema = z.object({
   categoriaId: optionalPositiveIntFromForm(),
+  segmentoSlug: optionalTrimmedString(),
   bairro: optionalTrimmedString(),
   porte: optionalEnumFromForm(["MEI", "MICRO", "PEQUENA", "MEDIA", "GRANDE"]),
   situacao: optionalEnumFromForm(["ATIVA", "INATIVA", "SUSPENSA", "ENCERRADA"]),

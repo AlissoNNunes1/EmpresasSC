@@ -2,35 +2,46 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiRequest } from "@/services/api";
-import type { RelatorioQueryResult, RelatorioRow } from "@/lib/validations/relatorio";
+import type { DimensaoConfig, GroupBy, Metrica, MetricaConfig, RelatorioQueryResult, RelatorioRow } from "@/lib/validations/relatorio";
 import { BarChart2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { BuilderControls, type GroupBy, type Metrica, type VizType } from "./builder-controls";
+import { BuilderControls, type VizType } from "./builder-controls";
 import { VisualizacaoResultado } from "./visualizacao-resultado";
 
-type BuilderState = {
-  groupBy: GroupBy;
-  metrica: Metrica;
-  vizType: VizType;
+type FiltrosAtivos = {
   filtroSituacao: string;
   filtroPorte: string;
   filtroCategoriaId: string;
+  filtroSegmentoId: string;
+};
+
+type BuilderState = FiltrosAtivos & {
+  groupBy: GroupBy;
+  metrica: Metrica;
+  vizType: VizType;
 };
 
 type Status = "idle" | "loading" | "error" | "success";
 
 type Props = {
+  dimensoes: DimensaoConfig[];
+  metricas: MetricaConfig[];
   categorias: Array<{ id: number; nome: string }>;
+  segmentos: Array<{ id: number; nome: string; cor: string | null }>;
 };
 
-export function RelatorioBuilder({ categorias }: Props) {
+export function RelatorioBuilder({ dimensoes, metricas, categorias, segmentos }: Props) {
+  const defaultGroupBy = (dimensoes[0]?.key ?? "segmento") as GroupBy;
+  const defaultMetrica = (metricas[0]?.key ?? "totalEmpresas") as Metrica;
+
   const [state, setState] = useState<BuilderState>({
-    groupBy: "categoria",
-    metrica: "totalEmpresas",
+    groupBy: defaultGroupBy,
+    metrica: defaultMetrica,
     vizType: "barVertical",
     filtroSituacao: "",
     filtroPorte: "",
     filtroCategoriaId: "",
+    filtroSegmentoId: "",
   });
 
   const [status, setStatus] = useState<Status>("idle");
@@ -41,15 +52,14 @@ export function RelatorioBuilder({ categorias }: Props) {
   const fetchData = useCallback(async (s: BuilderState) => {
     setStatus("loading");
     setErrorMsg(null);
-
     const qs = new URLSearchParams({
       groupBy: s.groupBy,
       metrica: s.metrica,
       ...(s.filtroSituacao ? { situacao: s.filtroSituacao } : {}),
       ...(s.filtroPorte ? { porte: s.filtroPorte } : {}),
       ...(s.filtroCategoriaId ? { categoriaId: s.filtroCategoriaId } : {}),
+      ...(s.filtroSegmentoId ? { segmentoId: s.filtroSegmentoId } : {}),
     });
-
     try {
       const data = await apiRequest<RelatorioQueryResult>(`/api/relatorios/query?${qs.toString()}`);
       setRows(data.rows);
@@ -61,21 +71,17 @@ export function RelatorioBuilder({ categorias }: Props) {
     }
   }, []);
 
-  // Fetch on mount with initial state
-  useEffect(() => {
-    fetchData(state);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { fetchData(state); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   function handleChange(patch: Partial<BuilderState>) {
     const next = { ...state, ...patch };
     setState(next);
-
-    // vizType changes are presentation-only — no refetch needed
-    if (!("vizType" in patch)) {
-      fetchData(next);
-    }
+    if (!("vizType" in patch)) fetchData(next);
   }
+
+  // Resolve os labels dinamicamente a partir das configs — nunca hardcoded
+  const groupByLabel = dimensoes.find((d) => d.key === state.groupBy)?.label ?? state.groupBy;
+  const metricaLabel = metricas.find((m) => m.key === state.metrica)?.label ?? state.metrica;
 
   return (
     <Card className="card-elevated">
@@ -84,16 +90,25 @@ export function RelatorioBuilder({ categorias }: Props) {
           <BarChart2 className="h-4 w-4 text-[#1b3383]" />
           Construtor de Relatórios
         </CardTitle>
+        <p className="text-xs text-slate-500">
+          Cruze qualquer dimensão com qualquer métrica. Campos personalizados criados nas configurações aparecem automaticamente aqui.
+        </p>
       </CardHeader>
       <CardContent className="space-y-5">
         <BuilderControls
           groupBy={state.groupBy}
           metrica={state.metrica}
           vizType={state.vizType}
-          filtroSituacao={state.filtroSituacao}
-          filtroPorte={state.filtroPorte}
-          filtroCategoriaId={state.filtroCategoriaId}
+          filtros={{
+            filtroSituacao: state.filtroSituacao,
+            filtroPorte: state.filtroPorte,
+            filtroCategoriaId: state.filtroCategoriaId,
+            filtroSegmentoId: state.filtroSegmentoId,
+          }}
+          dimensoes={dimensoes}
+          metricas={metricas}
           categorias={categorias}
+          segmentos={segmentos}
           onChange={handleChange}
         />
 
@@ -103,8 +118,8 @@ export function RelatorioBuilder({ categorias }: Props) {
             rows={rows}
             total={total}
             vizType={state.vizType}
-            metrica={state.metrica}
-            groupBy={state.groupBy}
+            metricaLabel={metricaLabel}
+            groupByLabel={groupByLabel}
             errorMsg={errorMsg}
           />
         </div>

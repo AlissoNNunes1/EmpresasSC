@@ -1,5 +1,6 @@
 import { UsuarioTable } from "@/components/usuarios/usuario-table";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { listUsuarios } from "@/lib/services/usuario/query";
 import { PapelUsuario } from "@prisma/client";
 import { Shield, Users } from "lucide-react";
@@ -22,7 +23,14 @@ export default async function UsuariosPage() {
     );
   }
 
-  const usuarios = await listUsuarios();
+  const [usuarios, segmentos] = await Promise.all([
+    listUsuarios(),
+    prisma.segmento.findMany({
+      where: { ativo: true },
+      select: { id: true, nome: true, cor: true },
+      orderBy: { ordem: "asc" },
+    }),
+  ]);
 
   return (
     <main className="space-y-8">
@@ -47,7 +55,7 @@ export default async function UsuariosPage() {
           <Users className="h-4 w-4" />
           Gestao de Usuários
         </div>
-        <UsuarioTable initialUsuarios={usuarios} currentUserId={Number(session?.user.id)} />
+        <UsuarioTable initialUsuarios={usuarios} segmentos={segmentos} currentUserId={Number(session?.user.id)} />
       </section>
     </main>
   );

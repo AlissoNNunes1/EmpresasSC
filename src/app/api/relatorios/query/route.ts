@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     situacao: sp.get("situacao") ?? undefined,
     porte: sp.get("porte") ?? undefined,
     categoriaId: sp.get("categoriaId") ?? undefined,
+    segmentoId: sp.get("segmentoId") ?? undefined,
   });
 
   if (!parsed.success) {

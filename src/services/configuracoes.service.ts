@@ -71,6 +71,45 @@ export async function deletarCategoriaConfig(id: number): Promise<void> {
   await apiRequest<void>(`/api/categorias/${id}`, { method: "DELETE" });
 }
 
+// ── Segmentos ─────────────────────────────────────────────────────────────────
+
+export type SegmentoConfig = {
+  id: number;
+  nome: string;
+  slug: string;
+  descricao: string | null;
+  cor: string | null;
+  icone: string | null;
+  ativo: boolean;
+  ordem: number;
+};
+
+export type SegmentoPayload = {
+  nome: string;
+  slug: string;
+  descricao?: string;
+  cor?: string;
+  icone?: string;
+  ordem?: number;
+  ativo?: boolean;
+};
+
+export async function listarSegmentosConfig(): Promise<SegmentoConfig[]> {
+  return apiRequest<SegmentoConfig[]>("/api/segmentos");
+}
+
+export async function criarSegmentoConfig(payload: SegmentoPayload): Promise<SegmentoConfig> {
+  return apiRequest<SegmentoConfig>("/api/segmentos", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function atualizarSegmentoConfig(slug: string, payload: Partial<SegmentoPayload>): Promise<SegmentoConfig> {
+  return apiRequest<SegmentoConfig>(`/api/segmentos/${slug}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function excluirSegmentoConfig(slug: string): Promise<void> {
+  await apiRequest<void>(`/api/segmentos/${slug}`, { method: "DELETE" });
+}
+
 //   __  ____ ____ _  _ 
 // / _\/ ___) ___) )( \
 // /    \___ \___ ) \/ (

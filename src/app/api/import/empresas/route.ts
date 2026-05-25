@@ -1,4 +1,5 @@
 import { registerAccessLog } from "@/lib/access-log";
+import { prisma } from "@/lib/prisma";
 import { refreshDashboardCacheViews } from "@/lib/services/dashboard/refresh";
 import { importarEmpresasInteligente, parseImportFile } from "@/lib/services/empresa/import";
 import { requireApiAuth } from "@/lib/session";
@@ -41,8 +42,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Carrega campos customizados para aliases dinâmicos na importação
+    const camposCustom = await prisma.campoEmpresa.findMany({
+      where: { builtin: false, visivel: true },
+      select: { id: true, nome: true, label: true, tipo: true },
+      orderBy: { ordem: "asc" },
+    });
+
     const buffer = await file.arrayBuffer();
-    const rows = parseImportFile(buffer);
+    const rows = parseImportFile(buffer, camposCustom);
 
     if (!rows.length) {
       return NextResponse.json({ error: "Nenhuma linha encontrada no arquivo" }, { status: 400 });
@@ -53,6 +61,7 @@ export async function POST(request: NextRequest) {
       dryRun,
       usuarioRole: auth.session.user.role,
       mergeDecisions,
+      camposCustom,
     });
 
     await registerAccessLog({

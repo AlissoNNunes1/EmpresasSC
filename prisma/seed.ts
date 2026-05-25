@@ -82,6 +82,31 @@ async function main() {
     console.log(`Empresa exemplo pronta: ${empresa.razaoSocial}`);
   }
 
+  // ── Segmentos padrão ────────────────────────────────────────────────────────
+  const segmentosData = [
+    { nome: "Comércio Geral", slug: "comercio", cor: "#1b3383", icone: "Building2", ordem: 1 },
+    { nome: "MEI", slug: "mei", cor: "#059669", icone: "Briefcase", ordem: 2 },
+    { nome: "Economia Popular e Solidária", slug: "eps", cor: "#7c3aed", icone: "Users2", ordem: 3 },
+  ];
+
+  for (const s of segmentosData) {
+    await prisma.segmento.upsert({
+      where: { slug: s.slug },
+      update: { nome: s.nome, cor: s.cor, icone: s.icone, ordem: s.ordem },
+      create: { ...s, ativo: true },
+    });
+  }
+
+  // ── Migrar empresas existentes para o segmento "Comércio Geral" ─────────────
+  const segComercio = await prisma.segmento.findUnique({ where: { slug: "comercio" } });
+  if (segComercio) {
+    await prisma.empresa.updateMany({
+      where: { segmentoId: null },
+      data: { segmentoId: segComercio.id },
+    });
+    console.log("Empresas existentes migradas para 'Comércio Geral'");
+  }
+
   console.log(`Admin inicial: ${admin.email} / senha: Admin@123`);
 }
 

@@ -27,14 +27,15 @@ export async function listUsuarios(filtros: UsuarioFiltros = {}): Promise<Usuari
   const usuarios = await prisma.usuario.findMany({
     where: buildWhere(filtros),
     orderBy: { nome: "asc" },
+    include: {
+      segmentos: { include: { segmento: { select: { id: true, nome: true, cor: true } } } },
+    },
   });
 
   const logs = await prisma.logAcesso.groupBy({
     by: ["usuarioId"],
     _max: { criadoEm: true },
-    where: {
-      usuarioId: { not: null },
-    },
+    where: { usuarioId: { not: null } },
   });
 
   const ultimoAcessoMap = new Map<number, Date>();
@@ -52,6 +53,11 @@ export async function listUsuarios(filtros: UsuarioFiltros = {}): Promise<Usuari
     status: usuario.ativo ? "ATIVO" : "INATIVO",
     ultimoAcesso: ultimoAcessoMap.get(usuario.id)?.toISOString() ?? null,
     criadoEm: usuario.criadoEm.toISOString(),
+    segmentos: usuario.segmentos.map((us) => ({
+      id: us.segmento.id,
+      nome: us.segmento.nome,
+      cor: us.segmento.cor,
+    })),
   }));
 }
 

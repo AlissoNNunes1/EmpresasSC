@@ -1,6 +1,7 @@
 import { registerAccessLog } from "@/lib/access-log";
 import { prisma } from "@/lib/prisma";
 import { refreshDashboardCacheViews } from "@/lib/services/dashboard/refresh";
+import { geocodeEmpresa } from "@/lib/services/geocoding";
 import { findEmpresas } from "@/lib/services/empresa/query";
 import { requireApiAuth } from "@/lib/session";
 import { onlyDigits } from "@/lib/utils";
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
 
   const parsedFilters = filtrosEmpresaSchema.safeParse({
     categoriaId: request.nextUrl.searchParams.get("categoriaId") ?? undefined,
+    segmentoSlug: request.nextUrl.searchParams.get("segmentoSlug") ?? undefined,
     bairro: request.nextUrl.searchParams.get("bairro") ?? undefined,
     porte: request.nextUrl.searchParams.get("porte") ?? undefined,
     situacao: request.nextUrl.searchParams.get("situacao") ?? undefined,
@@ -28,7 +30,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Filtros invalidos", details: parsedFilters.error.flatten() }, { status: 400 });
   }
 
-  const empresas = await findEmpresas(parsedFilters.data);
+  const segmentoSlug = request.nextUrl.searchParams.get("segmentoSlug") ?? undefined;
+  const empresas = await findEmpresas(parsedFilters.data, segmentoSlug);
 
   await registerAccessLog({
     usuarioId: Number(auth.session?.user.id),
@@ -71,6 +74,11 @@ export async function POST(request: NextRequest) {
     ? (body.camposCustom as { campoId: number; valor: string }[])
     : [];
 
+  // Coordenadas manuais têm prioridade; se não enviadas, geocodifica em background pelo CEP
+  const latManual = typeof body.lat === "number" ? body.lat : null;
+  const lngManual = typeof body.lng === "number" ? body.lng : null;
+  const temCoordsManual = latManual !== null && lngManual !== null;
+
   const created = await prisma.empresa.create({
     data: {
       razaoSocial: parsed.data.razaoSocial,
@@ -81,6 +89,8 @@ export async function POST(request: NextRequest) {
       atividadePrincipal: parsed.data.atividadePrincipal,
       numeroEmpregados: parsed.data.numeroEmpregados,
       situacao: parsed.data.situacao,
+      lat: latManual,
+      lng: lngManual,
       endereco: { create: parsed.data.endereco },
       responsaveis: { create: parsed.data.responsaveis },
       camposCustom: {
@@ -96,6 +106,16 @@ export async function POST(request: NextRequest) {
       camposCustom: { include: { campo: true } },
     },
   });
+
+  // Geocoding em background — não bloqueia a resposta ao cliente
+  if (!temCoordsManual && parsed.data.endereco.cep) {
+    geocodeEmpresa({
+      empresaId: created.id,
+      cep: parsed.data.endereco.cep,
+      logradouro: parsed.data.endereco.logradouro,
+      bairro: parsed.data.endereco.bairro,
+    });
+  }
 
   await refreshDashboardCacheViews();
 

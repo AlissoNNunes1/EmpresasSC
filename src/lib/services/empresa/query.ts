@@ -2,18 +2,21 @@ import { prisma } from "@/lib/prisma";
 import { buildEmpresaWhere } from "@/lib/services/empresa/filters";
 import type { FiltrosEmpresaInput } from "@/lib/validations/empresa";
 
-export async function findEmpresas(filters: FiltrosEmpresaInput) {
+export async function findEmpresas(filters: FiltrosEmpresaInput, segmentoSlug?: string) {
+  const where = buildEmpresaWhere(filters);
+  if (segmentoSlug) {
+    where.segmento = { slug: segmentoSlug };
+  }
   return prisma.empresa.findMany({
-    where: buildEmpresaWhere(filters),
+    where,
     include: {
       categoria: true,
+      segmento: { select: { id: true, nome: true, slug: true, cor: true } },
       endereco: true,
       responsaveis: true,
       camposCustom: { include: { campo: true } },
     },
-    orderBy: {
-      razaoSocial: "asc",
-    },
+    orderBy: { razaoSocial: "asc" },
   });
 }
 

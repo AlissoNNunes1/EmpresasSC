@@ -1,6 +1,7 @@
 import { registerAccessLog } from "@/lib/access-log";
 import { prisma } from "@/lib/prisma";
 import { refreshDashboardCacheViews } from "@/lib/services/dashboard/refresh";
+import { geocodeEmpresa } from "@/lib/services/geocoding";
 import { requireApiAuth } from "@/lib/session";
 import { onlyDigits } from "@/lib/utils";
 import { empresaSchema } from "@/lib/validations/empresa";
@@ -82,6 +83,13 @@ export async function PUT(request: NextRequest, context: Params) {
     ? (body.camposCustom as { campoId: number; valor: string }[])
     : [];
 
+  const latManual = typeof body.lat === "number" ? body.lat : null;
+  const lngManual = typeof body.lng === "number" ? body.lng : null;
+  const temCoordsManual = latManual !== null && lngManual !== null;
+  // null explícito = limpar coords; undefined = não mexer (manter o que estava)
+  const latUpdate = body.lat === null ? null : (latManual ?? undefined);
+  const lngUpdate = body.lng === null ? null : (lngManual ?? undefined);
+
   const updated = await prisma.$transaction(async (tx) => {
     await tx.pessoa.deleteMany({ where: { empresaId: id } });
     await tx.valorCampoEmpresa.deleteMany({ where: { empresaId: id } });
@@ -97,6 +105,8 @@ export async function PUT(request: NextRequest, context: Params) {
         atividadePrincipal: parsed.data.atividadePrincipal,
         numeroEmpregados: parsed.data.numeroEmpregados,
         situacao: parsed.data.situacao,
+        lat: latUpdate,
+        lng: lngUpdate,
         endereco: {
           upsert: {
             update: parsed.data.endereco,
@@ -118,6 +128,28 @@ export async function PUT(request: NextRequest, context: Params) {
       },
     });
   });
+
+  // Re-geocodifica sempre que o endereço mudar e não há coords manuais.
+  // Compara o CEP anterior com o novo — se mudou (ou nunca foi geocodificada), dispara.
+  if (!temCoordsManual && parsed.data.endereco.cep) {
+    const anterior = await prisma.empresa.findUnique({
+      where: { id },
+      include: { endereco: { select: { cep: true } } },
+    });
+    const cepAnterior = anterior?.endereco?.cep ?? "";
+    const cepNovo = parsed.data.endereco.cep;
+    const enderecoMudou = cepAnterior !== cepNovo;
+    const semCoords = anterior?.lat == null;
+
+    if (enderecoMudou || semCoords) {
+      geocodeEmpresa({
+        empresaId: id,
+        cep: cepNovo,
+        logradouro: parsed.data.endereco.logradouro,
+        bairro: parsed.data.endereco.bairro,
+      });
+    }
+  }
 
   await refreshDashboardCacheViews();
 

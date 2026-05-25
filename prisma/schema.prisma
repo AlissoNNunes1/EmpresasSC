@@ -35,17 +35,69 @@ enum PapelUsuario {
 }
 
 model Usuario {
-  id            Int          @id @default(autoincrement())
+  id            Int                @id @default(autoincrement())
   nome          String
-  email         String       @unique
+  email         String             @unique
   senhaHash     String
-  papel         PapelUsuario @default(VISUALIZADOR)
-  ativo         Boolean      @default(true)
-  criadoEm      DateTime     @default(now())
-  atualizadoEm  DateTime     @updatedAt
+  papel         PapelUsuario       @default(VISUALIZADOR)
+  ativo         Boolean            @default(true)
+  criadoEm      DateTime           @default(now())
+  atualizadoEm  DateTime           @updatedAt
   logs          LogAcesso[]
+  segmentos     UsuarioSegmento[]
 
   @@map("usuarios")
+}
+
+model Segmento {
+  id           Int               @id @default(autoincrement())
+  nome         String
+  slug         String            @unique
+  descricao    String?
+  cor          String?
+  icone        String?
+  ativo        Boolean           @default(true)
+  ordem        Int               @default(999)
+  criadoEm     DateTime          @default(now()) @map("criado_em")
+  atualizadoEm DateTime          @updatedAt @map("atualizado_em")
+
+  empresas     Empresa[]
+  usuarios     UsuarioSegmento[]
+  areas        Area[]
+
+  @@map("segmentos")
+}
+
+model UsuarioSegmento {
+  id         Int      @id @default(autoincrement())
+  usuarioId  Int      @map("usuario_id")
+  segmentoId Int      @map("segmento_id")
+
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  segmento   Segmento @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, segmentoId])
+  @@index([usuarioId])
+  @@index([segmentoId])
+  @@map("usuario_segmentos")
+}
+
+model Area {
+  id           Int       @id @default(autoincrement())
+  nome         String
+  descricao    String?
+  tipo         String
+  cor          String?
+  geoJson      String    @map("geo_json")
+  segmentoId   Int?      @map("segmento_id")
+  ativo        Boolean   @default(true)
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+
+  segmento     Segmento? @relation(fields: [segmentoId], references: [id], onDelete: SetNull)
+
+  @@index([segmentoId])
+  @@map("areas")
 }
 
 model Categoria {
@@ -86,19 +138,23 @@ model ConfiguracaoSistema {
 }
 
 model Empresa {
-  id                 Int            @id @default(autoincrement())
-  razaoSocial        String         @map("razao_social")
-  nomeFantasia       String?        @map("nome_fantasia")
-  cnpj               String         @unique
+  id                 Int             @id @default(autoincrement())
+  razaoSocial        String          @map("razao_social")
+  nomeFantasia       String?         @map("nome_fantasia")
+  cnpj               String          @unique
   porte              PorteEmpresa
-  categoriaId        Int            @map("categoria_id")
-  atividadePrincipal String         @map("atividade_principal")
-  numeroEmpregados   Int            @map("numero_empregados")
+  categoriaId        Int             @map("categoria_id")
+  atividadePrincipal String          @map("atividade_principal")
+  numeroEmpregados   Int             @map("numero_empregados")
   situacao           SituacaoEmpresa
-  criadoEm           DateTime       @default(now())
-  atualizadoEm       DateTime       @updatedAt
+  segmentoId         Int?            @map("segmento_id")
+  lat                Float?
+  lng                Float?
+  criadoEm           DateTime        @default(now())
+  atualizadoEm       DateTime        @updatedAt
 
-  categoria          Categoria      @relation(fields: [categoriaId], references: [id])
+  categoria          Categoria       @relation(fields: [categoriaId], references: [id])
+  segmento           Segmento?       @relation(fields: [segmentoId], references: [id], onDelete: SetNull)
   endereco           Endereco?
   responsaveis       Pessoa[]
   camposCustom       ValorCampoEmpresa[]
@@ -106,6 +162,7 @@ model Empresa {
   @@index([categoriaId])
   @@index([porte])
   @@index([situacao])
+  @@index([segmentoId])
   @@map("empresas")
 }
 

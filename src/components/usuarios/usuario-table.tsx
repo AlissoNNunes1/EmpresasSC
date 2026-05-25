@@ -6,11 +6,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { UsuarioForm } from "@/components/usuarios/usuario-form";
 import { UsuarioModal } from "@/components/usuarios/usuario-modal";
 import { atualizarStatusUsuario, atualizarUsuario, criarUsuario, listarUsuarios } from "@/services/usuarios.service";
-import type { UsuarioFiltros, UsuarioPayload, UsuarioSistema } from "@/types/usuario";
+import type { SegmentoBasico, UsuarioFiltros, UsuarioPayload, UsuarioSistema } from "@/types/usuario";
 import { useMemo, useState } from "react";
 
 type Props = {
   initialUsuarios: UsuarioSistema[];
+  segmentos: SegmentoBasico[];
   currentUserId: number;
 };
 
@@ -32,7 +33,7 @@ function cargoLabel(role: UsuarioSistema["role"]) {
   return "Operacão básica";
 }
 
-export function UsuarioTable({ initialUsuarios, currentUserId }: Props) {
+export function UsuarioTable({ initialUsuarios, segmentos, currentUserId }: Props) {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>(initialUsuarios);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -262,6 +263,7 @@ export function UsuarioTable({ initialUsuarios, currentUserId }: Props) {
         <UsuarioForm
           mode={editing ? "edit" : "create"}
           initial={editing ?? undefined}
+          segmentos={segmentos}
           submitting={loading}
           onCancel={() => {
             setModalOpen(false);

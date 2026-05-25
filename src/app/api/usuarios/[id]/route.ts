@@ -44,15 +44,35 @@ export async function PUT(request: NextRequest, context: Params) {
     }
   }
 
-  const updated = await prisma.usuario.update({
-    where: { id },
-    data: {
-      nome: parsed.data.nome,
-      email: parsed.data.email?.trim().toLowerCase(),
-      papel: parsed.data.role,
-      ativo: parsed.data.status ? parsed.data.status === "ATIVO" : undefined,
-      senhaHash: parsed.data.senha ? await hash(parsed.data.senha, 10) : undefined,
-    },
+  const segmentoIds: number[] | undefined =
+    Array.isArray(body.segmentoIds) ? (body.segmentoIds as number[]).filter((n) => Number.isFinite(n)) : undefined;
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const u = await tx.usuario.update({
+      where: { id },
+      data: {
+        nome: parsed.data.nome,
+        email: parsed.data.email?.trim().toLowerCase(),
+        papel: parsed.data.role,
+        ativo: parsed.data.status ? parsed.data.status === "ATIVO" : undefined,
+        senhaHash: parsed.data.senha ? await hash(parsed.data.senha, 10) : undefined,
+      },
+    });
+
+    // Atualiza segmentos se enviados (undefined = não mexer; [] = remover todos)
+    if (segmentoIds !== undefined) {
+      await tx.usuarioSegmento.deleteMany({ where: { usuarioId: id } });
+      if (segmentoIds.length > 0) {
+        for (const segmentoId of segmentoIds) {
+          await tx.usuarioSegmento.upsert({
+            where: { usuarioId_segmentoId: { usuarioId: id, segmentoId } },
+            create: { usuarioId: id, segmentoId },
+            update: {},
+          });
+        }
+      }
+    }
+    return u;
   });
 
   await registerAccessLog({

@@ -1,12 +1,13 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import type { UsuarioPayload, UsuarioSistema } from "@/types/usuario";
+import type { SegmentoBasico, UsuarioPayload, UsuarioSistema } from "@/types/usuario";
 import { useMemo, useState } from "react";
 
 type Props = {
   mode: "create" | "edit";
   initial?: UsuarioSistema;
+  segmentos: SegmentoBasico[];   // lista dinâmica de segmentos ativos
   submitting: boolean;
   onCancel: () => void;
   onSubmit: (payload: UsuarioPayload) => Promise<void>;
@@ -18,14 +19,23 @@ const ROLE_OPTIONS = [
   { value: "VISUALIZADOR", label: "Operador" },
 ] as const;
 
-export function UsuarioForm({ mode, initial, submitting, onCancel, onSubmit }: Props) {
+export function UsuarioForm({ mode, initial, segmentos, submitting, onCancel, onSubmit }: Props) {
   const [nome, setNome] = useState(initial?.nome ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
   const [role, setRole] = useState<UsuarioPayload["role"]>(initial?.role ?? "VISUALIZADOR");
   const [status, setStatus] = useState<UsuarioPayload["status"]>(initial?.status ?? "ATIVO");
   const [senha, setSenha] = useState("");
   const [resetarSenha, setResetarSenha] = useState(mode === "create");
+  const [segmentoIds, setSegmentoIds] = useState<number[]>(
+    initial?.segmentos.map((s) => s.id) ?? []
+  );
   const [erro, setErro] = useState<string | null>(null);
+
+  function toggleSegmento(id: number) {
+    setSegmentoIds((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+    );
+  }
 
   const submitLabel = useMemo(() => {
     if (submitting) {
@@ -55,6 +65,7 @@ export function UsuarioForm({ mode, initial, submitting, onCancel, onSubmit }: P
         role,
         status,
         senha: resetarSenha ? senha : undefined,
+        segmentoIds,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao salvar usuario.";
@@ -145,6 +156,37 @@ export function UsuarioForm({ mode, initial, submitting, onCancel, onSubmit }: P
           </div>
         ) : null}
       </div>
+
+      {/* Segmentos — dinâmico, zero hardcode */}
+      {segmentos.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-2 text-sm font-medium text-slate-700">
+            Acesso a segmentos
+            <span className="ml-1 text-xs font-normal text-slate-400">(vazio = acesso global)</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {segmentos.map((seg) => {
+              const ativo = segmentoIds.includes(seg.id);
+              return (
+                <button
+                  key={seg.id}
+                  type="button"
+                  onClick={() => toggleSegmento(seg.id)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                    ativo ? "text-white" : "border border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                  }`}
+                  style={ativo ? { backgroundColor: seg.cor ?? "#1b3383" } : undefined}
+                >
+                  {seg.nome}
+                </button>
+              );
+            })}
+          </div>
+          {segmentoIds.length === 0 && (
+            <p className="mt-1.5 text-xs text-slate-400">Todos os segmentos visíveis.</p>
+          )}
+        </div>
+      )}
 
       {erro ? <p className="text-sm font-medium text-red-700">{erro}</p> : null}
 

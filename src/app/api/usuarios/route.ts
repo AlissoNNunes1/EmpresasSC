@@ -67,6 +67,17 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  // Atribui segmentos se fornecidos (vazio = acesso global)
+  const segmentoIds: number[] | undefined = Array.isArray(parsed.data.segmentoIds)
+    ? parsed.data.segmentoIds.filter((n) => Number.isFinite(n))
+    : undefined;
+
+  if (segmentoIds && segmentoIds.length > 0) {
+    for (const segmentoId of segmentoIds) {
+      await prisma.usuarioSegmento.create({ data: { usuarioId: created.id, segmentoId } });
+    }
+  }
+
   await registerAccessLog({
     usuarioId: Number(auth.session?.user.id),
     email: auth.session?.user.email ?? undefined,

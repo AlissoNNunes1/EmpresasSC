@@ -13,6 +13,7 @@ export const usuarioCreateSchema = z.object({
   role: z.nativeEnum(PapelUsuario),
   status: z.enum(["ATIVO", "INATIVO"]),
   senha: z.string().min(8, "Senha deve ter ao menos 8 caracteres").max(128),
+  segmentoIds: z.array(z.number().int()).optional(),
 });
 
 export const usuarioUpdateSchema = z.object({
@@ -21,6 +22,7 @@ export const usuarioUpdateSchema = z.object({
   role: z.nativeEnum(PapelUsuario).optional(),
   status: z.enum(["ATIVO", "INATIVO"]).optional(),
   senha: z.string().min(8).max(128).optional(),
+  segmentoIds: z.array(z.number().int()).optional(),
 });
 
 export const usuarioStatusSchema = z.object({

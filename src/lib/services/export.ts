@@ -46,6 +46,7 @@ const NUMBER_FORMATTER = new Intl.NumberFormat("pt-BR");
 
 export function buildEmpresaExportFilters(searchParams: URLSearchParams): FiltrosEmpresaInput {
   return {
+    segmentoSlug: searchParams.get("segmentoSlug") ?? undefined,
     categoriaId: searchParams.get("categoriaId") ? Number(searchParams.get("categoriaId")) : undefined,
     bairro: searchParams.get("bairro") ?? undefined,
     porte: searchParams.get("porte") ?? undefined,
@@ -56,19 +57,32 @@ export function buildEmpresaExportFilters(searchParams: URLSearchParams): Filtro
   };
 }
 
-export function buildEmpresaExportRows(empresas: EmpresaRecord[]): EmpresaExportRow[] {
-  return empresas.map((empresa) => ({
-    ID: empresa.id,
-    "Razão Social": empresa.razaoSocial,
-    "Nome Fantasia": empresa.nomeFantasia ?? "",
-    CNPJ: formatCnpj(empresa.cnpj),
-    Categoria: empresa.categoria.nome,
-    Porte: empresa.porte,
-    Bairro: empresa.endereco?.bairro ?? "",
-    "Atividade Principal": empresa.atividadePrincipal,
-    "Número de Empregados": empresa.numeroEmpregados,
-    Situação: empresa.situacao,
-  }));
+// Campos customizados visíveis são adicionados dinamicamente — sem hardcode
+export function buildEmpresaExportRows(empresas: EmpresaRecord[]): ExportRow[] {
+  return empresas.map((empresa) => {
+    const baseRow: ExportRow = {
+      ID: empresa.id,
+      "Razão Social": empresa.razaoSocial,
+      "Nome Fantasia": empresa.nomeFantasia ?? "",
+      CNPJ: formatCnpj(empresa.cnpj),
+      Segmento: (empresa as any).segmento?.nome ?? "",
+      Categoria: empresa.categoria.nome,
+      Porte: empresa.porte,
+      Bairro: empresa.endereco?.bairro ?? "",
+      Logradouro: empresa.endereco?.logradouro ?? "",
+      CEP: empresa.endereco?.cep ?? "",
+      "Atividade Principal": empresa.atividadePrincipal,
+      "Número de Empregados": empresa.numeroEmpregados,
+      Situação: empresa.situacao,
+    };
+
+    // Adiciona cada campo customizado como coluna — label do campo = cabeçalho da coluna
+    for (const cv of empresa.camposCustom ?? []) {
+      baseRow[cv.campo.label] = cv.valor;
+    }
+
+    return baseRow;
+  });
 }
 
 export function buildEmpresaExportContext(params: {
