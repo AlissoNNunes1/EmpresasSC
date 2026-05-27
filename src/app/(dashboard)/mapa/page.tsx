@@ -14,7 +14,7 @@ export default async function MapaPage() {
   const [empresasRaw, areasRaw, segmentos] = await Promise.all([
     // Somente empresas geocodificadas (lat/lng não nulos)
     prisma.empresa.findMany({
-      where: { lat: { not: null }, lng: { not: null } },
+      where: { lat: { not: null }, NOT: { lat: 0 } },
       select: {
         id: true, razaoSocial: true, porte: true, situacao: true,
         lat: true, lng: true,

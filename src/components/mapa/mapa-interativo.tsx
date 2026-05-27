@@ -59,7 +59,7 @@ export default function MapaInterativo({ empresas, areas, center, zoom = 13 }: P
       setLoading(true);
       try {
         if (empresas && empresas.length > 0) {
-          setMarkers(empresas.map((e) => ({ ...e })));
+          setMarkers(empresas.filter((e) => e.lat !== 0 && e.lng !== 0));
           return;
         }
         const res = await fetch(`/api/empresas`);
@@ -89,14 +89,17 @@ export default function MapaInterativo({ empresas, areas, center, zoom = 13 }: P
     fetchMarkers();
   }, [empresas]);
 
+  // Centro calculado a partir das props (disponíveis no primeiro render),
+  // não do estado markers — MapContainer ignora mudanças de center após montar.
   const centerResolved = useMemo<[number, number]>(() => {
     if (center) return center;
-    if (markers.length > 0) return [markers[0].lat, markers[0].lng];
-    return [-23.55052, -46.633308];
-  }, [center, markers]);
+    const valida = empresas.find((e) => e.lat !== 0 && e.lng !== 0);
+    if (valida) return [valida.lat, valida.lng];
+    return [-11.0139, -37.2028]; // São Cristóvão, SE
+  }, [center, empresas]);
 
   return (
-    <div className="w-full" aria-hidden={false}>
+    <div className="w-full h-full" aria-hidden={false}>
       <MapContainer center={centerResolved} zoom={zoom} style={{ height: "100%", width: "100%" }} className="rounded-lg">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
