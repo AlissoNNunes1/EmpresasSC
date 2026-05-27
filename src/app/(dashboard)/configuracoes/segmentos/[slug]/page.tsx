@@ -1,11 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { getCamposDoSegmento } from "@/lib/services/campo/query";
 import { getServerSession } from "next-auth";
 import { PapelUsuario } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Layers } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { CampoEmpresaConfig } from "@/services/campos.service";
+import type { CategoriaConfig } from "@/services/configuracoes.service";
+import { ConfigCamposSegmentoWrapper } from "@/components/configuracoes/config-campos-segmento-wrapper";
+import { ConfigCategoriasSegmentoWrapper } from "@/components/configuracoes/config-categorias-segmento-wrapper";
+import { ConfigVisibilidadeCampos } from "@/components/configuracoes/config-visibilidade-campos";
+import { getOrInitCampos } from "@/lib/services/campo/query";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -16,10 +23,8 @@ export default async function ConfigSegmentoPage({ params }: Props) {
 
   const { slug } = await params;
 
-  const [segmento, todasCategorias, camposCustom, areas] = await Promise.all([
+  const [segmento, areas] = await Promise.all([
     prisma.segmento.findUnique({ where: { slug } }),
-    prisma.categoria.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
-    prisma.campoEmpresa.findMany({ where: { builtin: false, visivel: true }, orderBy: { ordem: "asc" } }),
     prisma.area.findMany({
       where: { ativo: true, segmento: { slug } },
       orderBy: { criadoEm: "desc" },
@@ -28,10 +33,54 @@ export default async function ConfigSegmentoPage({ params }: Props) {
 
   if (!segmento) notFound();
 
-  const totalEmpresas = await prisma.empresa.count({ where: { segmentoId: segmento.id } });
+  await getOrInitCampos();
+
+  const [totalEmpresas, camposSegmento, camposGlobaisRaw, overrides, categoriasSegmento, categoriasGlobais] =
+    await Promise.all([
+      prisma.empresa.count({ where: { segmentoId: segmento.id } }),
+      getCamposDoSegmento(segmento.id),
+      prisma.campoEmpresa.findMany({
+        where: { segmentoId: null },
+        orderBy: { ordem: "asc" },
+        select: { id: true, nome: true, label: true, tipo: true, builtin: true, visivel: true, ordem: true },
+      }),
+      prisma.segmentoCampoConfig.findMany({ where: { segmentoId: segmento.id } }),
+      prisma.categoria.findMany({
+        where: { segmentoId: segmento.id },
+        orderBy: { nome: "asc" },
+      }),
+      prisma.categoria.findMany({
+        where: { segmentoId: null, ativo: true },
+        orderBy: { nome: "asc" },
+      }),
+    ]);
+
+  const IMUTAVEIS = ["cnpj", "razaoSocial"];
+  const overrideMap = new Map(overrides.map((o) => [o.campoId, o.ativo]));
+  const camposGlobaisConfig = camposGlobaisRaw.map((c) => ({
+    ...c,
+    ativoNoSegmento: overrideMap.has(c.id) ? overrideMap.get(c.id)! : c.visivel,
+    imutavel: IMUTAVEIS.includes(c.nome),
+  }));
+
+  const camposSegmentoConfig: CampoEmpresaConfig[] = camposSegmento.map((c) => ({
+    ...c,
+    tipo: c.tipo as CampoEmpresaConfig["tipo"],
+    criadoEm: c.criadoEm.toISOString(),
+    atualizadoEm: c.atualizadoEm.toISOString(),
+  }));
+
+  const categoriasSegmentoConfig: CategoriaConfig[] = categoriasSegmento.map((c) => ({
+    id: c.id,
+    nome: c.nome,
+    status: c.ativo ? "ATIVO" : "INATIVO",
+    criadoEm: c.criadoEm.toISOString(),
+    atualizadoEm: c.atualizadoEm.toISOString(),
+  }));
 
   return (
     <main className="space-y-6">
+      {/* Cabeçalho */}
       <section className="rounded-xl border border-[#d7deef] bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-center gap-3">
           <Link href="/configuracoes" className="text-slate-400 hover:text-slate-700">
@@ -44,31 +93,98 @@ export default async function ConfigSegmentoPage({ params }: Props) {
             <Layers className="h-5 w-5" style={{ color: segmento.cor ?? "#1b3383" }} />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#1b3383]">Configurações › Segmentos</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#1b3383]">
+              Configurações › Segmentos
+            </p>
             <h2 className="text-2xl font-bold text-[#1b3383]">{segmento.nome}</h2>
             {segmento.descricao && (
               <p className="text-sm text-slate-500">{segmento.descricao}</p>
             )}
           </div>
-          <div className="ml-auto rounded-full px-3 py-1 text-sm font-semibold text-white" style={{ backgroundColor: segmento.cor ?? "#1b3383" }}>
+          <div
+            className="ml-auto rounded-full px-3 py-1 text-sm font-semibold text-white"
+            style={{ backgroundColor: segmento.cor ?? "#1b3383" }}
+          >
             {totalEmpresas} empresa{totalEmpresas !== 1 ? "s" : ""}
           </div>
         </div>
       </section>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Categorias disponíveis */}
-        <Card className="card-elevated">
+        {/* Campos específicos do segmento — interativo */}
+        <Card className="card-elevated lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Categorias Disponíveis</CardTitle>
+            <CardTitle className="text-base">
+              Campos Personalizados de {segmento.nome}
+            </CardTitle>
+            <p className="text-xs text-slate-500">
+              Campos exclusivos deste segmento. Aparecerão nos formulários e exportações de{" "}
+              <strong>{segmento.nome}</strong> além dos campos globais.
+            </p>
           </CardHeader>
           <CardContent>
-            {todasCategorias.length === 0 ? (
-              <p className="text-sm text-slate-400">Nenhuma categoria cadastrada.</p>
+            <ConfigCamposSegmentoWrapper
+              segmentoSlug={slug}
+              initialCampos={camposSegmentoConfig}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Visibilidade de campos globais por segmento */}
+        <Card className="card-elevated lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Campos Globais — Visibilidade neste Segmento</CardTitle>
+            <p className="text-xs text-slate-500">
+              Ative ou desative quais campos globais aparecem nos formulários e exportações de{" "}
+              <strong>{segmento.nome}</strong>. Campos marcados como &quot;sempre visível&quot; não podem ser ocultados.
+              Gerencie os campos globais em{" "}
+              <Link href="/configuracoes" className="underline hover:text-slate-600">
+                Configurações › Campos
+              </Link>
+              .
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ConfigVisibilidadeCampos
+              segmentoSlug={slug}
+              initialCampos={camposGlobaisConfig}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Categorias específicas do segmento — interativo */}
+        <Card className="card-elevated">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Categorias de {segmento.nome}
+            </CardTitle>
+            <p className="text-xs text-slate-500">
+              Categorias exclusivas deste segmento, disponíveis além das globais.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ConfigCategoriasSegmentoWrapper
+              segmentoSlug={slug}
+              initialCategorias={categoriasSegmentoConfig}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Categorias globais (somente leitura) */}
+        <Card className="card-elevated">
+          <CardHeader>
+            <CardTitle className="text-base">Categorias Globais</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {categoriasGlobais.length === 0 ? (
+              <p className="text-sm text-slate-400">Nenhuma categoria global cadastrada.</p>
             ) : (
               <ul className="space-y-1.5">
-                {todasCategorias.map((cat) => (
-                  <li key={cat.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+                {categoriasGlobais.map((cat) => (
+                  <li
+                    key={cat.id}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
                     <span className="h-2 w-2 rounded-full bg-[#1b3383]" />
                     {cat.nome}
                   </li>
@@ -76,37 +192,9 @@ export default async function ConfigSegmentoPage({ params }: Props) {
               </ul>
             )}
             <p className="mt-3 text-xs text-slate-400">
-              Gerencie as categorias em{" "}
+              Aparecem em todos os segmentos. Gerencie em{" "}
               <Link href="/configuracoes" className="underline hover:text-slate-600">
                 Configurações › Categorias
-              </Link>
-              .
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Campos customizados ativos */}
-        <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle className="text-base">Campos Customizados Ativos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {camposCustom.length === 0 ? (
-              <p className="text-sm text-slate-400">Nenhum campo customizado ativo.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {camposCustom.map((campo) => (
-                  <li key={campo.id} className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-                    <span>{campo.label}</span>
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono text-slate-500">{campo.tipo}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-3 text-xs text-slate-400">
-              Gerencie os campos em{" "}
-              <Link href="/configuracoes" className="underline hover:text-slate-600">
-                Configurações › Campos
               </Link>
               .
             </p>
@@ -116,7 +204,7 @@ export default async function ConfigSegmentoPage({ params }: Props) {
         {/* Áreas associadas */}
         <Card className="card-elevated lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Áreas Associadas a este Segmento</CardTitle>
+            <CardTitle className="text-base">Áreas Associadas</CardTitle>
             <Link
               href="/areas/nova"
               className="text-xs font-semibold text-[#1b3383] hover:underline"
@@ -139,9 +227,12 @@ export default async function ConfigSegmentoPage({ params }: Props) {
                   <Link
                     key={area.id}
                     href={`/areas/${area.id}`}
-                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:shadow-sm transition-shadow"
+                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 transition-shadow hover:shadow-sm"
                   >
-                    <div className="h-4 w-4 flex-shrink-0 rounded-full" style={{ backgroundColor: area.cor ?? "#94a3b8" }} />
+                    <div
+                      className="h-4 w-4 flex-shrink-0 rounded-full"
+                      style={{ backgroundColor: area.cor ?? "#94a3b8" }}
+                    />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-slate-800">{area.nome}</p>
                       <p className="text-xs text-slate-400">{area.tipo}</p>
@@ -154,7 +245,7 @@ export default async function ConfigSegmentoPage({ params }: Props) {
         </Card>
       </div>
 
-      {/* Info do segmento */}
+      {/* Identificação */}
       <Card className="card-elevated">
         <CardHeader>
           <CardTitle className="text-base">Identificação do Segmento</CardTitle>
@@ -168,7 +259,10 @@ export default async function ConfigSegmentoPage({ params }: Props) {
             <div>
               <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cor</dt>
               <dd className="mt-0.5 flex items-center gap-1.5">
-                <span className="h-4 w-4 rounded-full border border-slate-200" style={{ backgroundColor: segmento.cor ?? "#94a3b8" }} />
+                <span
+                  className="h-4 w-4 rounded-full border border-slate-200"
+                  style={{ backgroundColor: segmento.cor ?? "#94a3b8" }}
+                />
                 <span className="font-mono text-slate-700">{segmento.cor ?? "—"}</span>
               </dd>
             </div>
@@ -179,7 +273,13 @@ export default async function ConfigSegmentoPage({ params }: Props) {
             <div>
               <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</dt>
               <dd className="mt-0.5">
-                <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${segmento.ativo ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+                <span
+                  className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    segmento.ativo
+                      ? "bg-green-100 text-green-700"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
                   {segmento.ativo ? "Ativo" : "Inativo"}
                 </span>
               </dd>

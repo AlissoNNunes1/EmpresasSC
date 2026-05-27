@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   }
 
   const categorias = await prisma.categoria.findMany({
+    where: { segmentoId: null },
     orderBy: { nome: "asc" },
     select: {
       id: true,
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   const nome = parsed.data.nome.trim();
-  const existente = await prisma.categoria.findUnique({ where: { nome } });
+  const existente = await prisma.categoria.findFirst({ where: { nome, segmentoId: null } });
   if (existente) {
     return NextResponse.json({ error: "Categoria ja cadastrada" }, { status: 409 });
   }

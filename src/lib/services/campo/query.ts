@@ -149,10 +149,44 @@ export async function getOrInitCampos() {
   return prisma.campoEmpresa.findMany({ orderBy: { ordem: "asc" } });
 }
 
-export async function getCamposVisiveis() {
+export async function getCamposVisiveis(segmentoId?: number) {
   await getOrInitCampos();
+
+  if (segmentoId === undefined) {
+    // Comportamento global (sem segmento): todos os campos globais visíveis
+    return prisma.campoEmpresa.findMany({
+      where: { visivel: true, segmentoId: null },
+      orderBy: { ordem: "asc" },
+    });
+  }
+
+  // Carrega campos globais visíveis + overrides do segmento + campos exclusivos do segmento
+  const [globais, overrides, exclusivos] = await Promise.all([
+    prisma.campoEmpresa.findMany({
+      where: { visivel: true, segmentoId: null },
+      orderBy: { ordem: "asc" },
+    }),
+    prisma.segmentoCampoConfig.findMany({ where: { segmentoId } }),
+    prisma.campoEmpresa.findMany({
+      where: { visivel: true, segmentoId },
+      orderBy: { ordem: "asc" },
+    }),
+  ]);
+
+  const overrideMap = new Map(overrides.map((o) => [o.campoId, o.ativo]));
+
+  // Aplica overrides: exclui campos onde existe override com ativo = false
+  const globaisFiltrados = globais.filter((c) => {
+    const override = overrideMap.get(c.id);
+    return override === undefined ? true : override;
+  });
+
+  return [...globaisFiltrados, ...exclusivos];
+}
+
+export async function getCamposDoSegmento(segmentoId: number) {
   return prisma.campoEmpresa.findMany({
-    where: { visivel: true },
+    where: { segmentoId },
     orderBy: { ordem: "asc" },
   });
 }

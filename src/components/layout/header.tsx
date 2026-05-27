@@ -2,7 +2,6 @@ import type { PapelUsuario } from "@prisma/client";
 import { Shield } from "lucide-react";
 import { LogoutButton } from "./logout-button";
 
-// Mapeia roles para textos legíveis
 const ROLE_LABELS: Record<PapelUsuario, string> = {
   ADMIN: "Administrador",
   ANALISTA: "Analista",
@@ -14,16 +13,14 @@ export function Header({ role }: { role: PapelUsuario }) {
 
   return (
     <header className="border-b border-slate-200 bg-white shadow-sm">
-      <div className="mx-auto w-full max-w-7xl px-4 py-3">
+      <div className="mx-auto w-full max-w-7xl px-4 py-2">
         <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-bold text-[#1b3383]">
-              Cadastro de Empresas
-            </h1>
-            <p className="mt-0.5 text-xs text-slate-600">
-              Gestão de empresas - São Cristóvão
-            </p>
-          </div>
+          {/* Timbre institucional */}
+          <img
+            src="/timbre.png"
+            alt="Secretaria Municipal de Desenvolvimento Econômico e do Trabalho — Prefeitura de São Cristóvão"
+            className="h-10 w-auto object-contain"
+          />
 
           {/* Badge de Perfil e Logout */}
           <div className="flex flex-shrink-0 items-center gap-3">

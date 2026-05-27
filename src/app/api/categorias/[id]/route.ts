@@ -56,9 +56,13 @@ export async function PUT(request: NextRequest, context: Params) {
 
   if (parsed.data.nome) {
     const nome = parsed.data.nome.trim();
-    const existente = await prisma.categoria.findUnique({ where: { nome } });
+    const atual = await prisma.categoria.findUnique({ where: { id }, select: { segmentoId: true } });
+    if (!atual) return NextResponse.json({ error: "Categoria não encontrada" }, { status: 404 });
+    const existente = await prisma.categoria.findFirst({
+      where: { nome, segmentoId: atual.segmentoId },
+    });
     if (existente && existente.id !== id) {
-      return NextResponse.json({ error: "Nome de categoria ja em uso" }, { status: 409 });
+      return NextResponse.json({ error: "Nome de categoria já em uso" }, { status: 409 });
     }
   }
 

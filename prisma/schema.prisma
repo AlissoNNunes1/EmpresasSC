@@ -61,9 +61,12 @@ model Segmento {
   criadoEm     DateTime          @default(now()) @map("criado_em")
   atualizadoEm DateTime          @updatedAt @map("atualizado_em")
 
-  empresas     Empresa[]
-  usuarios     UsuarioSegmento[]
-  areas        Area[]
+  empresas         Empresa[]
+  usuarios         UsuarioSegmento[]
+  areas            Area[]
+  campos           CampoEmpresa[]
+  categorias       Categoria[]
+  campoConfigs     SegmentoCampoConfig[]
 
   @@map("segmentos")
 }
@@ -101,14 +104,19 @@ model Area {
 }
 
 model Categoria {
-  id          Int       @id @default(autoincrement())
-  nome        String    @unique
-  ativo       Boolean   @default(true)
-  criadoEm    DateTime  @default(now())
-  atualizadoEm DateTime @updatedAt
-  empresas    Empresa[]
+  id           Int       @id @default(autoincrement())
+  nome         String
+  ativo        Boolean   @default(true)
+  segmentoId   Int?      @map("segmento_id")
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+
+  segmento     Segmento? @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
+  empresas     Empresa[]
   configuracoesPadrao ConfiguracaoSistema[] @relation("CategoriaPadrao")
 
+  @@unique([nome, segmentoId])
+  @@index([segmentoId])
   @@map("categorias")
 }
 
@@ -223,20 +231,37 @@ model ResumoPorteView {
 }
 
 model CampoEmpresa {
-  id          Int       @id @default(autoincrement())
-  nome        String    @unique
-  label       String
-  tipo        String    @default("TEXTO")
-  builtin     Boolean   @default(false)
-  obrigatorio Boolean   @default(false)
-  visivel     Boolean   @default(true)
-  ordem       Int       @default(999)
-  opcoes      String?
-  criadoEm    DateTime  @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
-  valores     ValorCampoEmpresa[]
+  id           Int       @id @default(autoincrement())
+  nome         String    @unique
+  label        String
+  tipo         String    @default("TEXTO")
+  builtin      Boolean   @default(false)
+  obrigatorio  Boolean   @default(false)
+  visivel      Boolean   @default(true)
+  ordem        Int       @default(999)
+  opcoes       String?
+  segmentoId   Int?      @map("segmento_id")
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
 
+  segmento          Segmento?            @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
+  valores           ValorCampoEmpresa[]
+  configSegmentos   SegmentoCampoConfig[]
+
+  @@index([segmentoId])
   @@map("campos_empresa")
+}
+
+model SegmentoCampoConfig {
+  segmentoId Int          @map("segmento_id")
+  campoId    Int          @map("campo_id")
+  ativo      Boolean      @default(true)
+
+  segmento   Segmento     @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
+  campo      CampoEmpresa @relation(fields: [campoId], references: [id], onDelete: Cascade)
+
+  @@id([segmentoId, campoId])
+  @@map("segmento_campo_config")
 }
 
 model ValorCampoEmpresa {

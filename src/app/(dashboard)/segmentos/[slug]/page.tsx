@@ -50,8 +50,11 @@ export default async function SegmentoPage({ params, searchParams }: Props) {
   try {
     [empresas, categorias, campos] = await Promise.all([
       findEmpresas(filtros, slug),
-      prisma.categoria.findMany({ orderBy: { nome: "asc" } }),
-      getCamposVisiveis(),
+      prisma.categoria.findMany({
+        where: { OR: [{ segmentoId: null }, { segmentoId: segmento.id }] },
+        orderBy: { nome: "asc" },
+      }),
+      getCamposVisiveis(segmento.id),
     ]);
   } catch {
     erroConsulta = true;

@@ -487,7 +487,7 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-lg">
-              Empresas
+              Empreedimentos
               <span className="ml-2 text-sm font-normal text-slate-500">
                 ({empresas.length} {empresas.length === 1 ? "registro" : "registros"})
               </span>

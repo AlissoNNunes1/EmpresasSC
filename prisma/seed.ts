@@ -7,11 +7,12 @@ async function main() {
   const categorias = ["Comercio", "Industria", "Servicos", "Tecnologia", "Saude", "Educacao"];
 
   for (const nome of categorias) {
-    await prisma.categoria.upsert({
-      where: { nome },
-      update: { ativo: true },
-      create: { nome, ativo: true },
-    });
+    const existente = await prisma.categoria.findFirst({ where: { nome, segmentoId: null } });
+    if (existente) {
+      await prisma.categoria.update({ where: { id: existente.id }, data: { ativo: true } });
+    } else {
+      await prisma.categoria.create({ data: { nome, ativo: true } });
+    }
   }
 
   await prisma.configuracaoSistema.upsert({
@@ -44,7 +45,7 @@ async function main() {
     },
   });
 
-  const categoriaComercio = await prisma.categoria.findUnique({ where: { nome: "Comercio" } });
+  const categoriaComercio = await prisma.categoria.findFirst({ where: { nome: "Comercio", segmentoId: null } });
 
   if (categoriaComercio) {
     const empresa = await prisma.empresa.upsert({
