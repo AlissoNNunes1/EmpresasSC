@@ -38,6 +38,8 @@ export default async function SegmentoPage({ params, searchParams }: Props) {
     minEmpregados: queryValue(qp.minEmpregados),
     maxEmpregados: queryValue(qp.maxEmpregados),
     termo: queryValue(qp.termo),
+    sortBy: queryValue(qp.sortBy),
+    sortDir: queryValue(qp.sortDir),
   });
 
   const filtros = filtrosParse.success ? filtrosParse.data : {};

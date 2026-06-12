@@ -1,5 +1,5 @@
-import type { Prisma } from "@prisma/client";
 import type { FiltrosEmpresaInput } from "@/lib/validations/empresa";
+import type { Prisma } from "@prisma/client";
 
 export function buildEmpresaWhere(filters: FiltrosEmpresaInput): Prisma.EmpresaWhereInput {
   const where: Prisma.EmpresaWhereInput = {};

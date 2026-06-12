@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { buildEmpresaWhere } from "@/lib/services/empresa/filters";
+import { buildEmpresaOrderBy } from "@/lib/services/empresa/sort";
 import type { FiltrosEmpresaInput } from "@/lib/validations/empresa";
 
 export async function findEmpresas(filters: FiltrosEmpresaInput, segmentoSlug?: string) {
@@ -16,7 +17,7 @@ export async function findEmpresas(filters: FiltrosEmpresaInput, segmentoSlug?: 
       responsaveis: true,
       camposCustom: { include: { campo: true } },
     },
-    orderBy: { razaoSocial: "asc" },
+    orderBy: buildEmpresaOrderBy(filters.sortBy, filters.sortDir),
   });
 }
 

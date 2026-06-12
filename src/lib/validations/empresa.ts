@@ -3,6 +3,7 @@ import { z } from "zod";
 const enumPorte = z.enum(["MEI", "MICRO", "PEQUENA", "MEDIA", "GRANDE"]);
 const enumSituacao = z.enum(["ATIVA", "INATIVA", "SUSPENSA", "ENCERRADA"]);
 const enumTipo = z.enum(["PROPRIETARIO", "GERENTE", "RH"]);
+const enumSortDir = z.enum(["asc", "desc"]);
 
 function optionalTrimmedString() {
   return z.preprocess((value) => {
@@ -86,6 +87,14 @@ export const filtrosEmpresaSchema = z.object({
   minEmpregados: optionalNonNegativeIntFromForm(),
   maxEmpregados: optionalNonNegativeIntFromForm(),
   termo: optionalTrimmedString(),
+  sortBy: optionalTrimmedString(),
+  sortDir: z.preprocess((value) => {
+    if (value === "" || value === null || value === undefined) {
+      return undefined;
+    }
+
+    return value;
+  }, enumSortDir.optional()),
 });
 
 export type EmpresaInput = z.infer<typeof empresaSchema>;

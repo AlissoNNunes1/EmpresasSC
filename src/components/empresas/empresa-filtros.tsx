@@ -1,7 +1,7 @@
 "use client";
 
 import type { CategoriaOption } from "@/types/empresa";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
 type Filtros = {
@@ -31,6 +31,7 @@ const ESTADO_VAZIO = {
 
 export function EmpresaFiltros({ filtros, categorias }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
   const [valores, setValores] = useState({
@@ -53,6 +54,10 @@ export function EmpresaFiltros({ filtros, categorias }: Props) {
     Object.entries(valores).forEach(([key, value]) => {
       if (value !== "") qs.set(key, value);
     });
+    const sortBy = searchParams.get("sortBy");
+    const sortDir = searchParams.get("sortDir");
+    if (sortBy) qs.set("sortBy", sortBy);
+    if (sortDir) qs.set("sortDir", sortDir);
     startTransition(() => {
       router.replace(`/empresas?${qs.toString()}`);
     });
@@ -60,8 +65,13 @@ export function EmpresaFiltros({ filtros, categorias }: Props) {
 
   function handleLimpar() {
     setValores(ESTADO_VAZIO);
+    const qs = new URLSearchParams();
+    const sortBy = searchParams.get("sortBy");
+    const sortDir = searchParams.get("sortDir");
+    if (sortBy) qs.set("sortBy", sortBy);
+    if (sortDir) qs.set("sortDir", sortDir);
     startTransition(() => {
-      router.replace("/empresas");
+      router.replace(qs.toString() ? `/empresas?${qs.toString()}` : "/empresas");
     });
   }
 

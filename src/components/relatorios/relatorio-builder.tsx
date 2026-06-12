@@ -3,8 +3,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiRequest } from "@/services/api";
 import type { DimensaoConfig, GroupBy, Metrica, MetricaConfig, RelatorioQueryResult, RelatorioRow } from "@/lib/validations/relatorio";
-import { BarChart2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { BarChart2, Download } from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BuilderControls, type VizType } from "./builder-controls";
 import { VisualizacaoResultado } from "./visualizacao-resultado";
 
@@ -73,6 +74,26 @@ export function RelatorioBuilder({ dimensoes, metricas, categorias, segmentos }:
 
   useEffect(() => { fetchData(state); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  const exportUrls = useMemo(() => {
+    const qs = new URLSearchParams({
+      source: "relatorios",
+      groupBy: state.groupBy,
+      metrica: state.metrica,
+    });
+
+    if (state.filtroSituacao) qs.set("situacao", state.filtroSituacao);
+    if (state.filtroPorte) qs.set("porte", state.filtroPorte);
+    if (state.filtroCategoriaId) qs.set("categoriaId", state.filtroCategoriaId);
+    if (state.filtroSegmentoId) qs.set("segmentoId", state.filtroSegmentoId);
+
+    const query = qs.toString();
+
+    return {
+      csv: `/api/export/csv?${query}`,
+      pdf: `/api/export/pdf?${query}`,
+    };
+  }, [state]);
+
   function handleChange(patch: Partial<BuilderState>) {
     const next = { ...state, ...patch };
     setState(next);
@@ -122,6 +143,20 @@ export function RelatorioBuilder({ dimensoes, metricas, categorias, segmentos }:
             groupByLabel={groupByLabel}
             errorMsg={errorMsg}
           />
+
+          {status === "success" && rows.length > 0 ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Exportar resultado</span>
+              <Link href={exportUrls.csv} className="btn-secondary h-9 px-3 text-xs">
+                <Download className="h-4 w-4" />
+                CSV
+              </Link>
+              <Link href={exportUrls.pdf} className="btn-secondary h-9 px-3 text-xs">
+                <Download className="h-4 w-4" />
+                PDF
+              </Link>
+            </div>
+          ) : null}
         </div>
       </CardContent>
     </Card>

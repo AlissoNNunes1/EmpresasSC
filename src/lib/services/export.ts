@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import * as XLSX from "xlsx";
 
+import type { RelatorioRow } from "@/lib/validations/relatorio";
 import type { FiltrosEmpresaInput } from "@/lib/validations/empresa";
 import type { EmpresaRecord } from "@/types/empresa";
 
@@ -25,6 +26,11 @@ export type EmpresaExportRow = {
   "Atividade Principal": string;
   "Número de Empregados": number;
   Situação: string;
+};
+
+export type RelatorioExportRow = {
+  Grupo: string;
+  Valor: number;
 };
 
 const PDF_COLUMNS: Array<{ key: keyof EmpresaExportRow; label: string; width: number }> = [
@@ -54,6 +60,8 @@ export function buildEmpresaExportFilters(searchParams: URLSearchParams): Filtro
     minEmpregados: searchParams.get("minEmpregados") ? Number(searchParams.get("minEmpregados")) : undefined,
     maxEmpregados: searchParams.get("maxEmpregados") ? Number(searchParams.get("maxEmpregados")) : undefined,
     termo: searchParams.get("termo") ?? undefined,
+    sortBy: searchParams.get("sortBy") ?? undefined,
+    sortDir: searchParams.get("sortDir") === "desc" ? "desc" : searchParams.get("sortDir") === "asc" ? "asc" : undefined,
   };
 }
 
@@ -83,6 +91,13 @@ export function buildEmpresaExportRows(empresas: EmpresaRecord[]): ExportRow[] {
 
     return baseRow;
   });
+}
+
+export function buildRelatorioExportRows(rows: RelatorioRow[]): ExportRow[] {
+  return rows.map((row) => ({
+    Grupo: row.label,
+    Valor: row.value,
+  }));
 }
 
 export function buildEmpresaExportContext(params: {
@@ -167,6 +182,41 @@ export async function toPdfBuffer(rows: ExportRow[], context: EmpresaExportConte
     }
 
     drawPdfRow(page, row, font, cursorY - rowHeight, rowHeight, margins, index);
+    cursorY -= rowHeight;
+  });
+
+  return pdfDoc.save();
+}
+
+export async function toReportPdfBuffer(rows: ExportRow[], context: EmpresaExportContext): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const pageSize: [number, number] = [842, 595];
+  const margins = { left: 32, right: 32, top: 28, bottom: 30 };
+
+  let page = pdfDoc.addPage(pageSize);
+  let cursorY = drawPdfHeader(page, font, boldFont, context, margins);
+  cursorY -= 18;
+
+  const columns = [
+    { key: "Grupo", label: "Grupo", width: 470 },
+    { key: "Valor", label: "Valor", width: 180 },
+  ] as const;
+
+  cursorY = drawGenericPdfTableHeader(page, boldFont, cursorY, margins, columns);
+
+  rows.forEach((row, index) => {
+    const rowHeight = calculateGenericPdfRowHeight(row, font, columns);
+
+    if (cursorY - rowHeight < margins.bottom) {
+      page = pdfDoc.addPage(pageSize);
+      cursorY = drawPdfHeader(page, font, boldFont, context, margins, false);
+      cursorY -= 18;
+      cursorY = drawGenericPdfTableHeader(page, boldFont, cursorY, margins, columns);
+    }
+
+    drawGenericPdfRow(page, row, font, cursorY - rowHeight, rowHeight, margins, columns, index);
     cursorY -= rowHeight;
   });
 
@@ -353,6 +403,96 @@ function drawPdfRow(
 
     x += column.width;
   }
+}
+
+function drawGenericPdfTableHeader(
+  page: PDFPage,
+  boldFont: PDFFont,
+  y: number,
+  margins: { left: number; right: number; top: number; bottom: number },
+  columns: ReadonlyArray<{ key: string; label: string; width: number }>,
+): number {
+  const headerHeight = 24;
+  let x = margins.left;
+
+  for (const column of columns) {
+    page.drawRectangle({
+      x,
+      y: y - headerHeight,
+      width: column.width,
+      height: headerHeight,
+      color: rgb(0.89, 0.92, 0.97),
+      borderColor: rgb(0.78, 0.82, 0.89),
+      borderWidth: 0.8,
+    });
+
+    page.drawText(column.label, {
+      x: x + 5,
+      y: y - 16,
+      size: 9,
+      font: boldFont,
+      color: rgb(0.13, 0.18, 0.28),
+      maxWidth: column.width - 10,
+    });
+
+    x += column.width;
+  }
+
+  return y - headerHeight;
+}
+
+function drawGenericPdfRow(
+  page: PDFPage,
+  row: ExportRow,
+  font: PDFFont,
+  rowY: number,
+  rowHeight: number,
+  margins: { left: number; right: number; top: number; bottom: number },
+  columns: ReadonlyArray<{ key: string; label: string; width: number }>,
+  index: number,
+): void {
+  let x = margins.left;
+  const rowFill = index % 2 === 0 ? rgb(1, 1, 1) : rgb(0.98, 0.99, 1);
+
+  for (const column of columns) {
+    page.drawRectangle({
+      x,
+      y: rowY,
+      width: column.width,
+      height: rowHeight,
+      color: rowFill,
+      borderColor: rgb(0.84, 0.87, 0.91),
+      borderWidth: 0.6,
+    });
+
+    const value = normalizeCell(row[column.key]);
+    const lines = wrapText(font, value, 8.2, column.width - 10);
+    lines.forEach((line, lineIndex) => {
+      page.drawText(line, {
+        x: x + 5,
+        y: rowY + rowHeight - 12 - lineIndex * 9.2,
+        size: 8.2,
+        font,
+        color: rgb(0.16, 0.18, 0.22),
+        maxWidth: column.width - 10,
+      });
+    });
+
+    x += column.width;
+  }
+}
+
+function calculateGenericPdfRowHeight(
+  row: ExportRow,
+  font: PDFFont,
+  columns: ReadonlyArray<{ key: string; label: string; width: number }>,
+): number {
+  const maxLines = columns.reduce((max, column) => {
+    const lines = wrapText(font, normalizeCell(row[column.key]), 8.2, column.width - 10);
+    return Math.max(max, lines.length);
+  }, 1);
+
+  return Math.max(22, maxLines * 9.2 + 8);
 }
 
 function calculatePdfRowHeight(row: ExportRow, font: PDFFont): number {

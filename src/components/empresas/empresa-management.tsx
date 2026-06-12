@@ -12,6 +12,9 @@ import type { PapelUsuario } from "@prisma/client";
 import {
     AlertCircle,
     ArrowLeft,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
     CheckCircle2,
     Eye,
     FileSpreadsheet,
@@ -22,8 +25,9 @@ import {
     Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { normalizeEmpresaSort } from "@/lib/services/empresa/sort";
 
 type CategoriaOption = {
   id: number;
@@ -178,6 +182,7 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
   const getLabel = (nome: string, fallback: string) => campos.find((c) => c.nome === nome)?.label ?? fallback;
   const isVisivel = (nome: string) => campos.find((c) => c.nome === nome)?.visivel !== false;
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<"create" | "edit" | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -198,6 +203,7 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
   const canEdit = role === "ADMIN" || role === "ANALISTA";
   const canDelete = role === "ADMIN";
   const canView = true;
+  const currentSort = normalizeEmpresaSort(searchParams.get("sortBy"), searchParams.get("sortDir"));
 
   const headerTitle = useMemo(() => {
     if (mode === "create") {
@@ -479,6 +485,32 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
     }
 
     router.refresh();
+  }
+
+  function updateSort(sortBy: Parameters<typeof normalizeEmpresaSort>[0]) {
+    const nextDir = currentSort.sortBy === sortBy && currentSort.sortDir === "asc" ? "desc" : "asc";
+    const nextSort = normalizeEmpresaSort(sortBy, nextDir);
+    const qs = new URLSearchParams(searchParams.toString());
+    qs.set("sortBy", nextSort.sortBy);
+    qs.set("sortDir", nextSort.sortDir);
+    router.replace(`${pathname}?${qs.toString()}`, { scroll: false });
+  }
+
+  function renderSortHead(label: string, sortBy: Parameters<typeof normalizeEmpresaSort>[0], alignRight = false) {
+    const active = currentSort.sortBy === sortBy;
+    const Icon = active ? (currentSort.sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+    return (
+      <button
+        type="button"
+        onClick={() => updateSort(sortBy)}
+        className={`inline-flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-[#1b3383] ${alignRight ? "justify-end text-right" : ""}`}
+        aria-label={`Ordenar por ${label}${active ? ` (${currentSort.sortDir === "asc" ? "crescente" : "decrescente"})` : ""}`}
+      >
+        <span>{label}</span>
+        <Icon className="h-3.5 w-3.5" />
+      </button>
+    );
   }
 
   return (
@@ -1058,14 +1090,14 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
           <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow className="bg-slate-50/80">
-                <TableHead className="w-12 text-slate-400">ID</TableHead>
-                <TableHead>Razão Social</TableHead>
-                <TableHead>CNPJ</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Bairro</TableHead>
-                <TableHead>Porte</TableHead>
-                <TableHead className="text-right">Empregados</TableHead>
-                <TableHead>Situação</TableHead>
+                <TableHead className="w-12 text-slate-400">{renderSortHead("ID", "id")}</TableHead>
+                <TableHead>{renderSortHead("Razão Social", "razaoSocial")}</TableHead>
+                <TableHead>{renderSortHead("CNPJ", "cnpj")}</TableHead>
+                <TableHead>{renderSortHead("Categoria", "categoria")}</TableHead>
+                <TableHead>{renderSortHead("Bairro", "bairro")}</TableHead>
+                <TableHead>{renderSortHead("Porte", "porte")}</TableHead>
+                <TableHead className="text-right">{renderSortHead("Empregados", "numeroEmpregados", true)}</TableHead>
+                <TableHead>{renderSortHead("Situação", "situacao")}</TableHead>
                 {canView ? <TableHead className="text-right">Ações</TableHead> : null}
               </TableRow>
             </TableHeader>

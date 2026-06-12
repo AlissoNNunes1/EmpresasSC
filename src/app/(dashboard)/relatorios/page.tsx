@@ -1,9 +1,7 @@
 import { RelatorioBuilder } from "@/components/relatorios/relatorio-builder";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
 import type { DimensaoConfig, MetricaConfig } from "@/lib/validations/relatorio";
-import { BarChart3, Download, FileText } from "lucide-react";
-import Link from "next/link";
+import { BarChart3 } from "lucide-react";
 
 export default async function RelatoriosPage() {
   const [categorias, segmentos, camposVisiveis] = await Promise.all([
@@ -87,31 +85,6 @@ export default async function RelatoriosPage() {
         categorias={categorias}
         segmentos={segmentos}
       />
-
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-4 w-4 text-[#1b3383]" />
-            Exportações
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-slate-700">
-            Para exportar com filtros específicos, aplique os filtros na tela do segmento antes de exportar.
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Link href="/api/export/csv" className="btn-secondary">
-              <Download className="h-4 w-4" />CSV
-            </Link>
-            <Link href="/api/export/xlsx" className="btn-secondary">
-              <Download className="h-4 w-4" />XLSX
-            </Link>
-            <Link href="/api/export/pdf" className="btn-secondary">
-              <Download className="h-4 w-4" />PDF
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
     </main>
   );
 }
