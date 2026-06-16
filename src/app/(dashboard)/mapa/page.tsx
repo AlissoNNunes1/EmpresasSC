@@ -1,9 +1,9 @@
 import { GeocodingPanel } from "@/components/mapa/geocoding-panel";
 import MapaContainer from "@/components/mapa/mapa-container";
+import type { AreaOverlay, EmpresaPin } from "@/components/mapa/mapa-interativo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import type { EmpresaPin, AreaOverlay } from "@/components/mapa/mapa-interativo";
 import { Map, MapPin } from "lucide-react";
 import { getServerSession } from "next-auth";
 

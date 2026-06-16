@@ -10,8 +10,8 @@ import type { CampoEmpresaConfig } from "@/services/campos.service";
 import type { CategoriaOption } from "@/types/empresa";
 import { PapelUsuario } from "@prisma/client";
 import { Search } from "lucide-react";
-import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
+import { notFound } from "next/navigation";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -141,6 +141,7 @@ export default async function SegmentoPage({ params, searchParams }: Props) {
           exportXlsxUrl={`/api/export/xlsx?${qs.toString()}`}
           exportPdfUrl={`/api/export/pdf?${qs.toString()}`}
           temFiltrosAtivos={temFiltrosAtivos}
+          segmentoSlug={slug}
         />
       ) : null}
     </main>

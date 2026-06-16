@@ -13,7 +13,8 @@ type ImportOptions = {
   dryRun: boolean;
   usuarioRole: PapelUsuario;
   mergeDecisions?: Record<string, Record<string, "ARQUIVO" | "BANCO">>;
-  camposCustom?: CampoImportDef[];  // campos customizados para aliases dinâmicos
+  camposCustom?: CampoImportDef[];
+  segmentoId?: number;
 };
 
 type ImportError = {
@@ -111,6 +112,82 @@ function bigramSimilarity(a: string, b: string): number {
 }
 
 const FUZZY_THRESHOLD = 0.72;
+
+// ── Auto-resolução de conflitos triviais ──────────────────────────────────────
+
+const TEXTO_VAZIO = new Set([
+  "", "nao informado", "nao informada", "sem informacao", "sem informacoes",
+  "n a", "n/a", "na", "s n", "s/n", "sn", "nao se aplica", "nao possui",
+  "sem endereco", "sem bairro", "sem logradouro", "nao consta",
+  "responsavel nao informado",
+]);
+
+function isTextoVazio(v: string): boolean {
+  const n = normalizeSemanticValue(v).replace(/\s+/g, " ").trim();
+  return TEXTO_VAZIO.has(n) || !n;
+}
+
+function autoResolveTexto(f: string, d: string): string | undefined {
+  const fVazio = isTextoVazio(f);
+  const dVazio = isTextoVazio(d);
+  if (fVazio && !dVazio) return d;   // DB tem dado real → mantém banco
+  if (!fVazio && dVazio) return f;   // Arquivo tem dado real → usa arquivo
+  return undefined;                  // Ambos têm dados → exibe conflito
+}
+
+function autoResolveNumero(f: number, d: number): number | undefined {
+  if (f === 0 && d > 0) return d;
+  if (f > 0 && d === 0) return f;
+  return undefined;
+}
+
+function autoResolveCep(f: string, d: string): string | undefined {
+  const fVazio = !f || /^0+$/.test(f);
+  const dVazio = !d || /^0+$/.test(d);
+  if (fVazio && !dVazio) return d;
+  if (!fVazio && dVazio) return f;
+  return undefined;
+}
+
+function autoResolveCpf(f: string, d: string): string | undefined {
+  const fVazio = !f || /^0+$/.test(f);
+  const dVazio = !d || /^0+$/.test(d);
+  if (fVazio && !dVazio) return d;
+  if (!fVazio && dVazio) return f;
+  return undefined;
+}
+
+// ── Mapeamento de colunas ─────────────────────────────────────────────────────
+
+export type ColumnMapping = {
+  source: string;
+  target: string | null;
+  targetLabel: string;
+  method: "exact" | "fuzzy" | "custom" | null;
+  score?: number;
+};
+
+const FIELD_LABELS: Record<keyof RowMap, string> = {
+  estabelecimento: "Nome (Estabelecimento)",
+  razaoSocial: "Razão Social",
+  nomeFantasia: "Nome Fantasia",
+  cnpj: "CNPJ / CPF",
+  categoria: "Categoria",
+  categoriaId: "ID da Categoria",
+  atividadePrincipal: "Atividade Principal",
+  numeroEmpregados: "Nº Empregados",
+  numeroEmpregadosClt: "Nº Empregados CLT",
+  numeroEmpregadosFamilia: "Nº Empregados Família",
+  porte: "Porte",
+  situacao: "Situação",
+  cep: "CEP",
+  bairro: "Bairro",
+  logradouro: "Logradouro",
+  responsavelNome: "Nome do Responsável",
+  responsavelCpf: "CPF do Responsável",
+  responsavelContato: "Contato do Responsável",
+  responsavelTipo: "Tipo do Responsável",
+};
 
 function normalizeHeader(value: string): string {
   return value
@@ -471,19 +548,200 @@ function applyFallbackCnpjColumn(rows: ParsedSheetRow[]): ParsedSheetRow[] {
   return rows.map((row) => ({ ...row, cnpj: row[col] }));
 }
 
-export function parseImportFile(buffer: ArrayBuffer, camposCustom: CampoImportDef[] = []): Record<string, unknown>[] {
-  const workbook = XLSX.read(buffer, { type: "array", cellDates: false, raw: false });
-  const allRows: ParsedSheetRow[] = [];
+// ── Detecção de formato ───────────────────────────────────────────────────────
 
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) continue;
+type FileFormat = "xlsx" | "docx" | "pdf";
 
-    const sheetRows = extractRowsFromSheet(sheet);
-    allRows.push(...applyFallbackCnpjColumn(sheetRows));
+function detectFormat(
+  buffer: ArrayBuffer,
+  meta?: { fileName?: string; mimeType?: string },
+): FileFormat {
+  const bytes = new Uint8Array(buffer.slice(0, 8));
+
+  // PDF: %PDF (25 50 44 46)
+  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
+    return "pdf";
   }
 
-  // Aplica mapeamento de campos customizados a cada linha
+  // ZIP (PK): pode ser DOCX, XLSX, ODS — distingue pela extensão
+  if (bytes[0] === 0x50 && bytes[1] === 0x4B) {
+    const ext = meta?.fileName?.toLowerCase().split(".").pop();
+    if (ext === "docx") return "docx";
+    return "xlsx";
+  }
+
+  // Fallback: XLSX lida com XLS (OLE2), ODS, CSV e variantes
+  return "xlsx";
+}
+
+// ── Parser DOCX ───────────────────────────────────────────────────────────────
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
+}
+
+function extractDocxCellText(cellXml: string): string {
+  const parts: string[] = [];
+  const re = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(cellXml)) !== null) {
+    parts.push(m[1]);
+  }
+  return decodeXmlEntities(parts.join("").trim());
+}
+
+function extractDocxTables(xml: string): string[][][] {
+  const tables: string[][][] = [];
+  const tableRe = /<w:tbl(?:\s[^>]*)?>[\s\S]*?<\/w:tbl>/g;
+  let tm: RegExpExecArray | null;
+
+  while ((tm = tableRe.exec(xml)) !== null) {
+    const rows: string[][] = [];
+    const rowRe = /<w:tr(?:\s[^>]*)?>[\s\S]*?<\/w:tr>/g;
+    let rm: RegExpExecArray | null;
+
+    while ((rm = rowRe.exec(tm[0])) !== null) {
+      const cells: string[] = [];
+      const cellRe = /<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g;
+      let cm: RegExpExecArray | null;
+
+      while ((cm = cellRe.exec(rm[0])) !== null) {
+        // Ignora células de fusão vertical (continuação)
+        const isMergeContinuation =
+          /<w:vMerge(?:\s[^>]*)?\/?>/.test(cm[0]) &&
+          !/<w:vMerge\s[^>]*w:val\s*=\s*"restart"/.test(cm[0]);
+        cells.push(isMergeContinuation ? "" : extractDocxCellText(cm[0]));
+      }
+
+      if (cells.some((c) => c.trim())) rows.push(cells);
+    }
+
+    if (rows.length > 0) tables.push(rows);
+  }
+
+  return tables;
+}
+
+async function parseDocxBuffer(buffer: ArrayBuffer): Promise<ParsedSheetRow[]> {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(Buffer.from(buffer));
+
+  const docFile = zip.file("word/document.xml");
+  if (!docFile) return [];
+
+  const xml = await docFile.async("text");
+  const tables = extractDocxTables(xml);
+  const allRows: ParsedSheetRow[] = [];
+
+  for (const matrix of tables) {
+    if (matrix.length < 2) continue;
+
+    const headerIndex = findHeaderRowIndex(matrix);
+    if (headerIndex < 0) continue;
+
+    const topRow = matrix[headerIndex] ?? [];
+    const secondRow = matrix[headerIndex + 1] ?? [];
+    const useSecondHeader = hasCltFamiliaSubheader(secondRow);
+    const bodyStart = headerIndex + (useSecondHeader ? 2 : 1);
+
+    const headers = topRow.map((cell, i) => {
+      const top = normalizeSheetHeader(cell);
+      const bottom = useSecondHeader ? normalizeSheetHeader(secondRow[i] ?? "") : "";
+      return mergeHeaderParts(top, bottom) || `coluna_${i + 1}`;
+    });
+
+    for (const rowValues of matrix.slice(bodyStart)) {
+      const row = buildRowFromSheetHeaders(headers, rowValues);
+      if (isLikelyDataRow(row)) allRows.push(row);
+    }
+  }
+
+  return applyFallbackCnpjColumn(allRows);
+}
+
+// ── Parser PDF ────────────────────────────────────────────────────────────────
+
+function splitPdfLine(line: string): string[] {
+  if (line.includes("\t")) return line.split("\t").map((s) => s.trim());
+  return line.split(/\s{2,}/).map((s) => s.trim());
+}
+
+async function parsePdfBuffer(buffer: ArrayBuffer): Promise<ParsedSheetRow[]> {
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: buffer });
+  let rawText = "";
+  try {
+    const result = await parser.getText();
+    rawText = result.text;
+  } finally {
+    await parser.destroy().catch(() => undefined);
+  }
+
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((l: string) => l.trimEnd())
+    .filter((l: string) => l.trim().length > 0);
+
+  if (!lines.length) return [];
+
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const cols = splitPdfLine(lines[i]).filter(Boolean);
+    if (cols.length >= 2 && isLikelyHeaderRow(cols)) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (headerIdx < 0) return [];
+
+  const headerCols = splitPdfLine(lines[headerIdx]).filter(Boolean);
+  const headers = headerCols.map((h) => normalizeSheetHeader(h));
+  const rows: ParsedSheetRow[] = [];
+
+  for (const line of lines.slice(headerIdx + 1)) {
+    if (!line.trim()) continue;
+    const values = splitPdfLine(line);
+    if (values.filter(Boolean).length < 2) continue;
+    const row = buildRowFromSheetHeaders(headers, values);
+    if (isLikelyDataRow(row)) rows.push(row);
+  }
+
+  return applyFallbackCnpjColumn(rows);
+}
+
+// ── parseImportFile ───────────────────────────────────────────────────────────
+
+export async function parseImportFile(
+  buffer: ArrayBuffer,
+  camposCustom: CampoImportDef[] = [],
+  meta?: { fileName?: string; mimeType?: string },
+): Promise<Record<string, unknown>[]> {
+  const format = detectFormat(buffer, meta);
+
+  let allRows: ParsedSheetRow[];
+
+  if (format === "docx") {
+    allRows = await parseDocxBuffer(buffer);
+  } else if (format === "pdf") {
+    allRows = await parsePdfBuffer(buffer);
+  } else {
+    const workbook = XLSX.read(buffer, { type: "array", cellDates: false, raw: false });
+    allRows = [];
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) continue;
+      allRows.push(...applyFallbackCnpjColumn(extractRowsFromSheet(sheet)));
+    }
+  }
+
   return allRows.map((row) => {
     const mapped = mapRow(row as Record<string, unknown>, camposCustom);
     return { ...row, ...mapped };
@@ -772,38 +1030,46 @@ function applyMergeDecisions(
     fileValue: T,
     dbValue: T,
     sameCheck: (a: T, b: T) => boolean,
-    apply: (value: T) => void
+    apply: (value: T) => void,
+    autoResolver?: (f: T, d: T) => T | undefined
   ) => {
-    if (sameCheck(fileValue, dbValue)) {
-      return;
-    }
+    if (sameCheck(fileValue, dbValue)) return;
 
     const decision = decisionsByCnpj[campo];
-    if (!decision) {
-      conflitos.push({
-        campo,
-        valorArquivo: valueToText(fileValue),
-        valorBanco: valueToText(dbValue),
-      });
+    if (decision) {
+      apply(mergeValueByDecision(decision, fileValue, dbValue));
       return;
     }
 
-    const merged = mergeValueByDecision(decision, fileValue, dbValue);
-    apply(merged);
+    // Resolve automaticamente quando um dos lados é vazio/placeholder
+    if (autoResolver) {
+      const resolved = autoResolver(fileValue, dbValue);
+      if (resolved !== undefined) {
+        apply(resolved);
+        return;
+      }
+    }
+
+    conflitos.push({
+      campo,
+      valorArquivo: valueToText(fileValue),
+      valorBanco: valueToText(dbValue),
+    });
   };
 
   handleConflict("razaoSocial", payload.razaoSocial, existente.razaoSocial, isSameText, (value) => {
     nextPayload.razaoSocial = value;
-  });
+  }, autoResolveTexto);
   handleConflict("nomeFantasia", payload.nomeFantasia ?? "", existente.nomeFantasia ?? "", isSameText, (value) => {
     nextPayload.nomeFantasia = value || null;
-  });
+  }, autoResolveTexto);
   handleConflict("atividadePrincipal", payload.atividadePrincipal, existente.atividadePrincipal, isSameText, (value) => {
     nextPayload.atividadePrincipal = value;
-  });
+  }, autoResolveTexto);
   handleConflict("numeroEmpregados", payload.numeroEmpregados, existente.numeroEmpregados, (a, b) => a === b, (value) => {
     nextPayload.numeroEmpregados = value;
-  });
+  }, autoResolveNumero);
+  // Enums (porte, situacao): sem auto-resolução — valores distintos sempre viram conflito
   handleConflict("porte", payload.porte, existente.porte, (a, b) => a === b, (value) => {
     nextPayload.porte = value;
   });
@@ -816,18 +1082,18 @@ function applyMergeDecisions(
     if (categoria) {
       nextPayload.categoriaId = categoria.id;
     }
-  });
+  }, autoResolveTexto);
 
   const enderecoBanco = existente.endereco ?? { cep: "", bairro: "", logradouro: "" };
   handleConflict("cep", payload.endereco.cep, enderecoBanco.cep, isSameDigits, (value) => {
     nextPayload.endereco.cep = onlyDigits(value).padStart(8, "0").slice(0, 8);
-  });
+  }, autoResolveCep);
   handleConflict("bairro", payload.endereco.bairro, enderecoBanco.bairro, isSameText, (value) => {
     nextPayload.endereco.bairro = value;
-  });
+  }, autoResolveTexto);
   handleConflict("logradouro", payload.endereco.logradouro, enderecoBanco.logradouro, isSameText, (value) => {
     nextPayload.endereco.logradouro = value;
-  });
+  }, autoResolveTexto);
 
   const responsavelBanco = firstResponsavel ?? {
     nome: "",
@@ -837,16 +1103,16 @@ function applyMergeDecisions(
   };
   handleConflict("responsavelNome", payload.responsavel.nome, responsavelBanco.nome, isSameText, (value) => {
     nextPayload.responsavel.nome = value;
-  });
+  }, autoResolveTexto);
   handleConflict("responsavelTipo", payload.responsavel.tipo, responsavelBanco.tipo, (a, b) => a === b, (value) => {
     nextPayload.responsavel.tipo = value;
   });
   handleConflict("responsavelCpf", payload.responsavel.cpf, responsavelBanco.cpf, isSameDigits, (value) => {
     nextPayload.responsavel.cpf = onlyDigits(value).padStart(11, "0").slice(0, 11);
-  });
+  }, autoResolveCpf);
   handleConflict("responsavelContato", payload.responsavel.contato, responsavelBanco.contato, isSameText, (value) => {
     nextPayload.responsavel.contato = value;
-  });
+  }, autoResolveTexto);
 
   if (conflitos.length > 0) {
     return {
@@ -1000,6 +1266,8 @@ export async function importarEmpresasInteligente(
               atividadePrincipal: merge.payload.atividadePrincipal,
               numeroEmpregados: merge.payload.numeroEmpregados,
               situacao: merge.payload.situacao,
+              // Atribui ao segmento apenas se a empresa ainda não tiver um
+              ...(options.segmentoId && !existente.segmentoId ? { segmentoId: options.segmentoId } : {}),
               endereco: {
                 upsert: {
                   create: merge.payload.endereco,
@@ -1025,9 +1293,9 @@ export async function importarEmpresasInteligente(
             atividadePrincipal: payload.atividadePrincipal,
             numeroEmpregados: payload.numeroEmpregados,
             situacao: payload.situacao,
+            segmentoId: options.segmentoId ?? null,
             endereco: { create: payload.endereco },
             responsaveis: { create: [payload.responsavel] },
-            // Campos customizados importados dinamicamente
             camposCustom: valoresCamposCustom.length > 0
               ? { create: valoresCamposCustom }
               : undefined,
@@ -1047,7 +1315,137 @@ export async function importarEmpresasInteligente(
   return result;
 }
 
-//   __  ____ ____ _  _ 
+// ── Detecção de mapeamento de colunas ────────────────────────────────────────
+
+function analyzeHeadersIntoMappings(
+  sourceHeaders: string[],
+  camposCustom: CampoImportDef[],
+): ColumnMapping[] {
+  const colunas: ColumnMapping[] = [];
+  const seenSources = new Set<string>();
+
+  for (const sourceLabel of sourceHeaders) {
+    const normalized = normalizeHeader(sourceLabel);
+    if (!normalized || seenSources.has(sourceLabel)) continue;
+    seenSources.add(sourceLabel);
+
+    // 1. Correspondência exata
+    let found = false;
+    for (const [target, aliases] of Object.entries(HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
+      if (aliases.includes(normalized)) {
+        colunas.push({ source: sourceLabel, target, targetLabel: FIELD_LABELS[target], method: "exact" });
+        found = true;
+        break;
+      }
+    }
+    if (found) continue;
+
+    // 2. Correspondência fuzzy
+    let bestTarget: keyof RowMap | null = null;
+    let bestScore = 0;
+    for (const [target, aliases] of Object.entries(HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
+      for (const alias of aliases) {
+        const score = bigramSimilarity(normalized, alias);
+        if (score >= FUZZY_THRESHOLD && score > bestScore) {
+          bestScore = score;
+          bestTarget = target as keyof RowMap;
+        }
+      }
+    }
+    if (bestTarget) {
+      colunas.push({
+        source: sourceLabel,
+        target: bestTarget,
+        targetLabel: FIELD_LABELS[bestTarget],
+        method: "fuzzy",
+        score: Math.round(bestScore * 100),
+      });
+      continue;
+    }
+
+    // 3. Campo personalizado
+    let foundCustom = false;
+    for (const campo of camposCustom) {
+      const campoAliases = [normalizeHeader(campo.label), normalizeHeader(campo.nome)];
+      const scores = campoAliases.map((a) => bigramSimilarity(normalized, a));
+      const maxScore = Math.max(...scores);
+      if (campoAliases.includes(normalized) || maxScore >= FUZZY_THRESHOLD) {
+        colunas.push({
+          source: sourceLabel,
+          target: `custom:${campo.id}`,
+          targetLabel: campo.label,
+          method: "custom",
+          score: Math.round(maxScore * 100),
+        });
+        foundCustom = true;
+        break;
+      }
+    }
+    if (!foundCustom) {
+      colunas.push({ source: sourceLabel, target: null, targetLabel: "Não mapeado", method: null });
+    }
+  }
+
+  return colunas;
+}
+
+export async function detectColumnMappings(
+  buffer: ArrayBuffer,
+  camposCustom: CampoImportDef[] = [],
+  meta?: { fileName?: string; mimeType?: string },
+): Promise<{ colunas: ColumnMapping[]; totalLinhas: number }> {
+  const format = detectFormat(buffer, meta);
+
+  // Para DOCX e PDF: extrai cabeçalhos diretamente das linhas parseadas
+  if (format === "docx" || format === "pdf") {
+    const rows = format === "docx"
+      ? await parseDocxBuffer(buffer)
+      : await parsePdfBuffer(buffer);
+
+    if (!rows.length) return { colunas: [], totalLinhas: 0 };
+
+    const headerKeys = Object.keys(rows[0]);
+    const colunas = analyzeHeadersIntoMappings(headerKeys, camposCustom);
+    return { colunas, totalLinhas: rows.length };
+  }
+
+  // XLSX / CSV / XLS / ODS — lógica original com preservação do rótulo original
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: false, raw: false });
+  let totalLinhas = 0;
+  const allHeaders: string[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1, defval: "", blankrows: false, raw: false,
+    });
+    if (!matrix.length) continue;
+
+    const headerIndex = findHeaderRowIndex(matrix);
+    if (headerIndex < 0) continue;
+
+    const topHeaderRow = matrix[headerIndex] ?? [];
+    const secondRow = matrix[headerIndex + 1] ?? [];
+    const useSecondHeader = hasCltFamiliaSubheader(secondRow);
+    const bodyStart = headerIndex + (useSecondHeader ? 2 : 1);
+    totalLinhas += Math.max(0, matrix.length - bodyStart);
+
+    topHeaderRow.forEach((cell, index) => {
+      const top = normalizeSheetHeader(cell);
+      const bottom = useSecondHeader ? normalizeSheetHeader(secondRow[index]) : "";
+      const merged = mergeHeaderParts(top, bottom);
+      const sourceLabel = (merged || top || bottom || `Coluna ${index + 1}`).trim();
+      if (sourceLabel) allHeaders.push(sourceLabel);
+    });
+  }
+
+  const colunas = analyzeHeadersIntoMappings(allHeaders, camposCustom);
+  return { colunas, totalLinhas };
+}
+
+//   __  ____ ____ _  _
 // / _\/ ___) ___) )( \
 // /    \___ \___ ) \/ (
 // \_/\_(____(____|____/

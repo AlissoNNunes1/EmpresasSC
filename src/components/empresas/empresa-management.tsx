@@ -7,14 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { normalizeEmpresaSort } from "@/lib/services/empresa/sort";
 import { parseCampoOpcoes, type CampoEmpresaConfig } from "@/services/campos.service";
 import type { PapelUsuario } from "@prisma/client";
 import {
     AlertCircle,
+    ArrowDown,
     ArrowLeft,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
+    ArrowUp,
+    ArrowUpDown,
     CheckCircle2,
     Eye,
     FileSpreadsheet,
@@ -27,7 +28,6 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { normalizeEmpresaSort } from "@/lib/services/empresa/sort";
 
 type CategoriaOption = {
   id: number;
@@ -100,6 +100,7 @@ type Props = {
   exportXlsxUrl?: string;
   exportPdfUrl?: string;
   temFiltrosAtivos?: boolean;
+  segmentoSlug?: string;
 };
 
 function createEmptyForm(): EmpresaFormState {
@@ -175,7 +176,7 @@ function mergeSelectOptions(options: string[], currentValue: string): string[] {
   return unique;
 }
 
-export function EmpresaManagement({ empresas, categorias, role, campos, exportCsvUrl, exportXlsxUrl, exportPdfUrl, temFiltrosAtivos }: Props) {
+export function EmpresaManagement({ empresas, categorias, role, campos, exportCsvUrl, exportXlsxUrl, exportPdfUrl, temFiltrosAtivos, segmentoSlug }: Props) {
   const camposCustom = campos.filter((c) => !c.builtin);
   const campoAtividadePrincipal = campos.find((c) => c.nome === "atividadePrincipal");
   const campoEnderecoBairro = campos.find((c) => c.nome === "enderecoBairro");
@@ -551,7 +552,7 @@ export function EmpresaManagement({ empresas, categorias, role, campos, exportCs
                 )}
               </div>
             )}
-            {canCreate ? <EmpresaImportador exibirEmModal /> : null}
+            {canCreate ? <EmpresaImportador exibirEmModal segmentoSlug={segmentoSlug} /> : null}
             {canCreate ? (
               <Button onClick={openCreate} disabled={loading} className="gap-1.5">
                 <Plus className="h-4 w-4" />

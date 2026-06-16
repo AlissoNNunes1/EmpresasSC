@@ -1,10 +1,10 @@
 "use client";
 
-import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, GeoJSON } from "react-leaflet";
-import MarkerClusterGroup from "react-leaflet-cluster";
+import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useState } from "react";
+import { GeoJSON, MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import MapaEmpresaPopup from "./mapa-empresa-popup";
 
 // Corrige o ícone padrão do Leaflet que pode quebrar com bundlers

@@ -42,6 +42,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const segmentoSlugRaw = formData.get("segmentoSlug");
+    let segmentoId: number | undefined;
+    if (typeof segmentoSlugRaw === "string" && segmentoSlugRaw.trim()) {
+      const seg = await prisma.segmento.findUnique({
+        where: { slug: segmentoSlugRaw.trim() },
+        select: { id: true },
+      });
+      if (seg) segmentoId = seg.id;
+    }
+
     // Carrega campos customizados para aliases dinâmicos na importação
     const camposCustom = await prisma.campoEmpresa.findMany({
       where: { builtin: false, visivel: true },
@@ -50,7 +60,7 @@ export async function POST(request: NextRequest) {
     });
 
     const buffer = await file.arrayBuffer();
-    const rows = parseImportFile(buffer, camposCustom);
+    const rows = await parseImportFile(buffer, camposCustom, { fileName: file.name, mimeType: file.type });
 
     if (!rows.length) {
       return NextResponse.json({ error: "Nenhuma linha encontrada no arquivo" }, { status: 400 });
@@ -62,6 +72,7 @@ export async function POST(request: NextRequest) {
       usuarioRole: auth.session.user.role,
       mergeDecisions,
       camposCustom,
+      segmentoId,
     });
 
     await registerAccessLog({

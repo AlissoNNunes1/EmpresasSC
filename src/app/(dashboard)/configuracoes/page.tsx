@@ -1,10 +1,12 @@
 import { ConfigPanel } from "@/components/configuracoes/config-panel";
+import { ConfigReatribuicaoSegmento } from "@/components/configuracoes/config-reatribuicao-segmento";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrInitCampos } from "@/lib/services/campo/query";
 import { getConfiguracaoSistema } from "@/lib/services/configuracao/query";
 import { PapelUsuario } from "@prisma/client";
-import { Cog } from "lucide-react";
+import { Cog, Layers } from "lucide-react";
 import { getServerSession } from "next-auth";
 import type { CampoEmpresaConfig } from "@/services/campos.service";
 
@@ -25,11 +27,12 @@ export default async function ConfiguracoesPage() {
     );
   }
 
-  const [config, categorias, campos, segmentos] = await Promise.all([
+  const [config, categorias, campos, segmentos, empresasSemSegmento] = await Promise.all([
     getConfiguracaoSistema(),
     prisma.categoria.findMany({ orderBy: { nome: "asc" } }),
     getOrInitCampos(),
     prisma.segmento.findMany({ orderBy: { ordem: "asc" } }),
+    prisma.empresa.count({ where: { segmentoId: null } }),
   ]);
 
   return (
@@ -101,6 +104,31 @@ export default async function ConfiguracoesPage() {
           ordem: s.ordem,
         }))}
       />
+
+      {/* Empresas sem segmento — visível apenas quando há órfãs */}
+      {empresasSemSegmento > 0 && (
+        <Card className="card-elevated border-amber-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base text-amber-800">
+              <Layers className="h-4 w-4" />
+              Empresas sem segmento
+              <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+                {empresasSemSegmento}
+              </span>
+            </CardTitle>
+            <p className="text-xs text-slate-500">
+              Essas empresas não aparecem em nenhum segmento. Atribua-as ao segmento correto.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ConfigReatribuicaoSegmento
+              segmentos={segmentos
+                .filter((s) => s.ativo)
+                .map((s) => ({ id: s.id, nome: s.nome, cor: s.cor }))}
+            />
+          </CardContent>
+        </Card>
+      )}
     </main>
   );
 }

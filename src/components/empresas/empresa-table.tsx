@@ -12,9 +12,10 @@ type Props = {
   exportXlsxUrl?: string;
   exportPdfUrl?: string;
   temFiltrosAtivos?: boolean;
+  segmentoSlug?: string;
 };
 
-export function EmpresaTable({ empresas, categorias, role, campos, exportCsvUrl, exportXlsxUrl, exportPdfUrl, temFiltrosAtivos }: Props) {
+export function EmpresaTable({ empresas, categorias, role, campos, exportCsvUrl, exportXlsxUrl, exportPdfUrl, temFiltrosAtivos, segmentoSlug }: Props) {
   return (
     <EmpresaManagement
       empresas={empresas}
@@ -25,6 +26,7 @@ export function EmpresaTable({ empresas, categorias, role, campos, exportCsvUrl,
       exportXlsxUrl={exportXlsxUrl}
       exportPdfUrl={exportPdfUrl}
       temFiltrosAtivos={temFiltrosAtivos}
+      segmentoSlug={segmentoSlug}
     />
   );
 }

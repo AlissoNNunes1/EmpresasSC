@@ -1,8 +1,8 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { apiRequest } from "@/services/api";
 import type { DimensaoConfig, GroupBy, Metrica, MetricaConfig, RelatorioQueryResult, RelatorioRow } from "@/lib/validations/relatorio";
+import { apiRequest } from "@/services/api";
 import { BarChart2, Download } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
