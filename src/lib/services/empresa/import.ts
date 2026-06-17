@@ -477,6 +477,134 @@ function buildRowFromSheetHeaders(headers: string[], values: unknown[]): ParsedS
   return row;
 }
 
+// ── Fusão de coluna "número" (do imóvel) ao logradouro ───────────────────────
+// Algumas planilhas/documentos têm uma coluna "NUMERO" isolada com o número do
+// imóvel (ex.: "613", "4A", "s/n"). Essa mesma sigla colide com colunas de
+// numeração sequencial de linha ("Nº" 1, 2, 3...) usadas para descartar
+// subtotais. Distinguimos pelo conteúdo: se a coluna não é majoritariamente
+// dígito puro, não é um contador de linha — é número de endereço, e deve ser
+// incorporado ao logradouro em vez de descartar a linha ou ficar sem mapear.
+
+const NUMERO_COLUMN_HEADERS = new Set(["nº", "no", "n", "numero", "n o", "num"]);
+const ENDERECO_HEADER_SET = new Set(HEADER_ALIASES.logradouro.map((a) => normalizeHeader(a)));
+
+function findColumnIndexByNormalizedSet(headers: string[], aliasSet: Set<string>): number {
+  return headers.findIndex((h) => aliasSet.has(h));
+}
+
+function isRowCounterColumn(values: string[]): boolean {
+  const nonEmpty = values.map((v) => v.trim()).filter(Boolean);
+  if (nonEmpty.length < 2) return false;
+  if (!nonEmpty.every((v) => /^\d+$/.test(v))) return false;
+
+  // Um contador de linha real é sequencial, crescente e começa em ~1 — ao
+  // contrário de números de imóvel (ex.: "613", "12"), que são arbitrários.
+  const nums = nonEmpty.map((v) => parseInt(v, 10));
+  const startsLow = nums[0] <= 2;
+  const isNonDecreasing = nums.every((n, i) => i === 0 || n >= nums[i - 1]);
+  const endsNearCount = nums[nums.length - 1] <= nonEmpty.length * 2 + 5;
+
+  return startsLow && isNonDecreasing && endsNearCount;
+}
+
+function mergeNumeroEnderecoColumn(headers: string[], bodyRows: unknown[][]): string[] {
+  const numeroIdx = findColumnIndexByNormalizedSet(headers, NUMERO_COLUMN_HEADERS);
+  const enderecoIdx = findColumnIndexByNormalizedSet(headers, ENDERECO_HEADER_SET);
+  if (numeroIdx < 0 || enderecoIdx < 0 || numeroIdx === enderecoIdx) return headers;
+
+  const numeroValues = bodyRows.map((row) => asString(row[numeroIdx]));
+  if (isRowCounterColumn(numeroValues)) return headers; // é contador de linha, não número de endereço
+
+  for (const row of bodyRows) {
+    const numero = asString(row[numeroIdx]).trim();
+    const endereco = asString(row[enderecoIdx]).trim();
+    if (!numero) continue;
+
+    const normalizedNumero = normalizeSemanticValue(numero);
+    const semNumero = ["s n", "sn", "s/n", "000", "0"].includes(normalizedNumero);
+    const valorNumero = semNumero ? "S/N" : numero;
+    row[enderecoIdx] = endereco ? `${endereco}, ${valorNumero}` : valorNumero;
+  }
+
+  const nextHeaders = [...headers];
+  nextHeaders[numeroIdx] = `coluna_mesclada_numero_${numeroIdx}`;
+  return nextHeaders;
+}
+
+function applyHeadingAsCategoria(row: ParsedSheetRow, heading: string): void {
+  const hasAtividade = asString(row["atividade principal"] ?? row["atividade"] ?? row["cnae"] ?? "").trim();
+  const hasCategoria = asString(row["categoria"] ?? "").trim();
+  if (!hasAtividade && !hasCategoria) {
+    row["atividade principal"] = heading;
+  }
+}
+
+// ── Extração de múltiplos blocos tabulares ────────────────────────────────────
+// Documentos (DOCX/PDF) e algumas planilhas trazem várias seções, cada uma com
+// um título (ex.: "5590-6/02 – Acampamento Turístico") seguido de sua própria
+// tabela com cabeçalho repetido. Detecta cada bloco separadamente em vez de
+// tratar tudo após o primeiro cabeçalho como uma única tabela.
+
+type TabularBlock = { heading: string; headers: string[]; bodyRows: unknown[][] };
+
+function extractTabularBlocks(matrix: unknown[][]): TabularBlock[] {
+  const blocks: TabularBlock[] = [];
+  let i = 0;
+  let currentHeading = "";
+
+  while (i < matrix.length) {
+    const row = matrix[i] ?? [];
+
+    if (isLikelyHeaderRow(row)) {
+      const secondRow = matrix[i + 1] ?? [];
+      const useSecondHeader = hasCltFamiliaSubheader(secondRow);
+      const bodyStart = i + (useSecondHeader ? 2 : 1);
+
+      const headers = row.map((cell, idx) => {
+        const top = normalizeSheetHeader(cell);
+        const bottom = useSecondHeader ? normalizeSheetHeader(secondRow[idx]) : "";
+        return mergeHeaderParts(top, bottom) || `coluna_${idx + 1}`;
+      });
+
+      const bodyRows: unknown[][] = [];
+      let j = bodyStart;
+      while (j < matrix.length) {
+        const candidate = matrix[j] ?? [];
+        if (isLikelyHeaderRow(candidate)) break; // início da próxima tabela
+
+        const filledValues = candidate.filter((c) => asString(c).trim());
+        if (filledValues.length === 0) { j++; continue; }
+
+        // Linha isolada com apenas 1 célula preenchida em tabela de várias
+        // colunas: provável título/legenda da próxima seção, não dado — a
+        // menos que o valor pareça um CNPJ/CPF (linha legítima com só o
+        // documento preenchido, que isLikelyDataRow ainda pode validar).
+        if (filledValues.length === 1 && headers.length > 2) {
+          const onlyValue = asString(filledValues[0]).trim();
+          const looksLikeDocumento = onlyDigits(onlyValue).length >= 11;
+          if (!looksLikeDocumento) break;
+        }
+
+        bodyRows.push(candidate);
+        j++;
+      }
+
+      blocks.push({ heading: currentHeading, headers, bodyRows });
+      currentHeading = "";
+      i = j;
+    } else {
+      const text = row
+        .filter((c) => asString(c).trim())
+        .map((c) => asString(c).trim())
+        .join(" ");
+      if (text) currentHeading = text;
+      i++;
+    }
+  }
+
+  return blocks;
+}
+
 function extractRowsFromSheet(sheet: XLSX.WorkSheet): ParsedSheetRow[] {
   const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
@@ -489,29 +617,20 @@ function extractRowsFromSheet(sheet: XLSX.WorkSheet): ParsedSheetRow[] {
     return [];
   }
 
-  const headerIndex = findHeaderRowIndex(matrix);
-  if (headerIndex < 0) {
-    return [];
+  const blocks = extractTabularBlocks(matrix);
+  const allRows: ParsedSheetRow[] = [];
+
+  for (const block of blocks) {
+    const headers = mergeNumeroEnderecoColumn(block.headers, block.bodyRows);
+
+    for (const rowValues of block.bodyRows) {
+      const row = buildRowFromSheetHeaders(headers, rowValues);
+      if (block.heading) applyHeadingAsCategoria(row, block.heading);
+      if (isLikelyDataRow(row)) allRows.push(row);
+    }
   }
 
-  const topHeaderRow = matrix[headerIndex] ?? [];
-  const secondRow = matrix[headerIndex + 1] ?? [];
-  const useSecondHeader = hasCltFamiliaSubheader(secondRow);
-  const bodyStartIndex = headerIndex + (useSecondHeader ? 2 : 1);
-  const bodyRows = matrix.slice(bodyStartIndex);
-
-  const headers = topHeaderRow.map((cell, index) => {
-    const top = normalizeSheetHeader(cell);
-    const bottom = useSecondHeader ? normalizeSheetHeader(secondRow[index]) : "";
-    const merged = mergeHeaderParts(top, bottom);
-
-    return merged || top || bottom || `coluna_${index + 1}`;
-  });
-
-  return bodyRows
-    .filter((row) => Array.isArray(row) && row.some((cell) => asString(cell).trim()))
-    .map((row) => buildRowFromSheetHeaders(headers, row as unknown[]))
-    .filter((row) => isLikelyDataRow(row));
+  return allRows;
 }
 
 // ── auto-detecção de coluna CNPJ por conteúdo ────────────────────────────────
@@ -597,12 +716,30 @@ function extractDocxCellText(cellXml: string): string {
   return decodeXmlEntities(parts.join("").trim());
 }
 
-function extractDocxTables(xml: string): string[][][] {
-  const tables: string[][][] = [];
+function extractParagraphTexts(xml: string): string[] {
+  const out: string[] = [];
+  const re = /<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    const text = extractDocxCellText(m[0]);
+    if (text.trim()) out.push(text.trim());
+  }
+  return out;
+}
+
+type DocxTable = { heading: string; rows: string[][] };
+
+function extractDocxTables(xml: string): DocxTable[] {
+  const tables: DocxTable[] = [];
   const tableRe = /<w:tbl(?:\s[^>]*)?>[\s\S]*?<\/w:tbl>/g;
   let tm: RegExpExecArray | null;
+  let cursor = 0;
 
   while ((tm = tableRe.exec(xml)) !== null) {
+    const precedingXml = xml.slice(cursor, tm.index);
+    const paragraphs = extractParagraphTexts(precedingXml);
+    const heading = paragraphs.length ? paragraphs[paragraphs.length - 1] : "";
+
     const rows: string[][] = [];
     const rowRe = /<w:tr(?:\s[^>]*)?>[\s\S]*?<\/w:tr>/g;
     let rm: RegExpExecArray | null;
@@ -623,7 +760,8 @@ function extractDocxTables(xml: string): string[][][] {
       if (cells.some((c) => c.trim())) rows.push(cells);
     }
 
-    if (rows.length > 0) tables.push(rows);
+    if (rows.length > 0) tables.push({ heading, rows });
+    cursor = tm.index + tm[0].length;
   }
 
   return tables;
@@ -640,7 +778,7 @@ async function parseDocxBuffer(buffer: ArrayBuffer): Promise<ParsedSheetRow[]> {
   const tables = extractDocxTables(xml);
   const allRows: ParsedSheetRow[] = [];
 
-  for (const matrix of tables) {
+  for (const { heading, rows: matrix } of tables) {
     if (matrix.length < 2) continue;
 
     const headerIndex = findHeaderRowIndex(matrix);
@@ -651,14 +789,18 @@ async function parseDocxBuffer(buffer: ArrayBuffer): Promise<ParsedSheetRow[]> {
     const useSecondHeader = hasCltFamiliaSubheader(secondRow);
     const bodyStart = headerIndex + (useSecondHeader ? 2 : 1);
 
-    const headers = topRow.map((cell, i) => {
+    let headers = topRow.map((cell, i) => {
       const top = normalizeSheetHeader(cell);
       const bottom = useSecondHeader ? normalizeSheetHeader(secondRow[i] ?? "") : "";
       return mergeHeaderParts(top, bottom) || `coluna_${i + 1}`;
     });
 
-    for (const rowValues of matrix.slice(bodyStart)) {
+    const bodyRows = matrix.slice(bodyStart);
+    headers = mergeNumeroEnderecoColumn(headers, bodyRows);
+
+    for (const rowValues of bodyRows) {
       const row = buildRowFromSheetHeaders(headers, rowValues);
+      if (heading) applyHeadingAsCategoria(row, heading);
       if (isLikelyDataRow(row)) allRows.push(row);
     }
   }
@@ -691,30 +833,21 @@ async function parsePdfBuffer(buffer: ArrayBuffer): Promise<ParsedSheetRow[]> {
 
   if (!lines.length) return [];
 
-  let headerIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const cols = splitPdfLine(lines[i]).filter(Boolean);
-    if (cols.length >= 2 && isLikelyHeaderRow(cols)) {
-      headerIdx = i;
-      break;
+  const pdfMatrix: unknown[][] = lines.map((line) => splitPdfLine(line));
+  const blocks = extractTabularBlocks(pdfMatrix);
+  const allRows: ParsedSheetRow[] = [];
+
+  for (const block of blocks) {
+    const headers = mergeNumeroEnderecoColumn(block.headers, block.bodyRows);
+
+    for (const rowValues of block.bodyRows) {
+      const row = buildRowFromSheetHeaders(headers, rowValues);
+      if (block.heading) applyHeadingAsCategoria(row, block.heading);
+      if (isLikelyDataRow(row)) allRows.push(row);
     }
   }
 
-  if (headerIdx < 0) return [];
-
-  const headerCols = splitPdfLine(lines[headerIdx]).filter(Boolean);
-  const headers = headerCols.map((h) => normalizeSheetHeader(h));
-  const rows: ParsedSheetRow[] = [];
-
-  for (const line of lines.slice(headerIdx + 1)) {
-    if (!line.trim()) continue;
-    const values = splitPdfLine(line);
-    if (values.filter(Boolean).length < 2) continue;
-    const row = buildRowFromSheetHeaders(headers, values);
-    if (isLikelyDataRow(row)) rows.push(row);
-  }
-
-  return applyFallbackCnpjColumn(rows);
+  return applyFallbackCnpjColumn(allRows);
 }
 
 // ── parseImportFile ───────────────────────────────────────────────────────────
@@ -1404,7 +1537,8 @@ export async function detectColumnMappings(
 
     if (!rows.length) return { colunas: [], totalLinhas: 0 };
 
-    const headerKeys = Object.keys(rows[0]);
+    // Exclui colunas internas já incorporadas (ex.: número do imóvel mesclado ao logradouro)
+    const headerKeys = Object.keys(rows[0]).filter((k) => !k.startsWith("coluna_mesclada_numero_"));
     const colunas = analyzeHeadersIntoMappings(headerKeys, camposCustom);
     return { colunas, totalLinhas: rows.length };
   }
