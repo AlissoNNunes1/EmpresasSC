@@ -1,7 +1,12 @@
 import type { FiltrosEmpresaInput } from "@/lib/validations/empresa";
 import type { Prisma } from "@prisma/client";
 
-export function buildEmpresaWhere(filters: FiltrosEmpresaInput): Prisma.EmpresaWhereInput {
+export type CampoCustomFiltro = { campoId: number; valor: string };
+
+export function buildEmpresaWhere(
+  filters: FiltrosEmpresaInput,
+  camposCustomFiltro?: CampoCustomFiltro[],
+): Prisma.EmpresaWhereInput {
   const where: Prisma.EmpresaWhereInput = {};
 
   if (filters.categoriaId) {
@@ -49,6 +54,17 @@ export function buildEmpresaWhere(filters: FiltrosEmpresaInput): Prisma.EmpresaW
         },
       },
     ];
+  }
+
+  if (camposCustomFiltro && camposCustomFiltro.length > 0) {
+    where.AND = camposCustomFiltro.map((filtro) => ({
+      camposCustom: {
+        some: {
+          campoId: filtro.campoId,
+          valor: { contains: filtro.valor },
+        },
+      },
+    }));
   }
 
   return where;

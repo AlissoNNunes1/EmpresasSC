@@ -1,5 +1,13 @@
 import { findEmpresas } from "@/lib/services/empresa/query";
-import { buildEmpresaExportContext, buildEmpresaExportFilename, buildEmpresaExportFilters, buildEmpresaExportRows, toXlsxBuffer } from "@/lib/services/export";
+import {
+  buildEmpresaExportCamposFiltro,
+  buildEmpresaExportColumns,
+  buildEmpresaExportContext,
+  buildEmpresaExportFilename,
+  buildEmpresaExportFilters,
+  buildEmpresaExportRows,
+  toXlsxBuffer,
+} from "@/lib/services/export";
 import { requireApiAuth } from "@/lib/session";
 import { filtrosEmpresaSchema } from "@/lib/validations/empresa";
 import { PapelUsuario } from "@prisma/client";
@@ -18,12 +26,14 @@ export async function GET(request: NextRequest) {
   }
 
   const segmentoSlug = request.nextUrl.searchParams.get("segmentoSlug") ?? undefined;
-  const empresas = await findEmpresas(parsedFilters.data, segmentoSlug);
+  const camposCustomFiltro = buildEmpresaExportCamposFiltro(request.nextUrl.searchParams);
+  const columns = buildEmpresaExportColumns(request.nextUrl.searchParams);
+  const empresas = await findEmpresas(parsedFilters.data, segmentoSlug, camposCustomFiltro);
   const generatedAt = new Date();
   const sourceLabel = request.nextUrl.searchParams.get("source") === "relatorios" ? "Relatórios" : "Empresas";
   const payload = Buffer.from(
     toXlsxBuffer(
-      buildEmpresaExportRows(empresas),
+      buildEmpresaExportRows(empresas, { columns }),
       buildEmpresaExportContext({
         sourceLabel,
         totalRecords: empresas.length,

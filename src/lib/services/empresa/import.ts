@@ -778,22 +778,37 @@ async function parseDocxBuffer(buffer: ArrayBuffer): Promise<ParsedSheetRow[]> {
   const tables = extractDocxTables(xml);
   const allRows: ParsedSheetRow[] = [];
 
+  // O Word frequentemente divide uma tabela visualmente contínua em vários
+  // elementos <w:tbl> (um por seção/CNAE), mas só o primeiro repete a linha
+  // de cabeçalho — os demais começam direto com dados. Reaproveita o último
+  // cabeçalho conhecido quando a tabela atual não tiver um próprio.
+  let lastHeaders: string[] | null = null;
+
   for (const { heading, rows: matrix } of tables) {
-    if (matrix.length < 2) continue;
+    if (matrix.length < 1) continue;
 
     const headerIndex = findHeaderRowIndex(matrix);
-    if (headerIndex < 0) continue;
+    let headers: string[];
+    let bodyStart: number;
 
-    const topRow = matrix[headerIndex] ?? [];
-    const secondRow = matrix[headerIndex + 1] ?? [];
-    const useSecondHeader = hasCltFamiliaSubheader(secondRow);
-    const bodyStart = headerIndex + (useSecondHeader ? 2 : 1);
+    if (headerIndex >= 0) {
+      const topRow = matrix[headerIndex] ?? [];
+      const secondRow = matrix[headerIndex + 1] ?? [];
+      const useSecondHeader = hasCltFamiliaSubheader(secondRow);
+      bodyStart = headerIndex + (useSecondHeader ? 2 : 1);
 
-    let headers = topRow.map((cell, i) => {
-      const top = normalizeSheetHeader(cell);
-      const bottom = useSecondHeader ? normalizeSheetHeader(secondRow[i] ?? "") : "";
-      return mergeHeaderParts(top, bottom) || `coluna_${i + 1}`;
-    });
+      headers = topRow.map((cell, i) => {
+        const top = normalizeSheetHeader(cell);
+        const bottom = useSecondHeader ? normalizeSheetHeader(secondRow[i] ?? "") : "";
+        return mergeHeaderParts(top, bottom) || `coluna_${i + 1}`;
+      });
+      lastHeaders = headers;
+    } else if (lastHeaders) {
+      headers = lastHeaders;
+      bodyStart = 0;
+    } else {
+      continue; // sem cabeçalho conhecido ainda — não há como interpretar as colunas
+    }
 
     const bodyRows = matrix.slice(bodyStart);
     headers = mergeNumeroEnderecoColumn(headers, bodyRows);

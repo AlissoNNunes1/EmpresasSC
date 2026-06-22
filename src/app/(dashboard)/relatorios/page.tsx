@@ -1,4 +1,5 @@
-import { RelatorioBuilder } from "@/components/relatorios/relatorio-builder";
+import { RelatoriosTabs } from "@/components/relatorios/relatorios-tabs";
+import { EMPRESA_BUILTIN_COLUMNS } from "@/lib/services/export";
 import { prisma } from "@/lib/prisma";
 import type { DimensaoConfig, MetricaConfig } from "@/lib/validations/relatorio";
 import { BarChart3 } from "lucide-react";
@@ -12,12 +13,12 @@ export default async function RelatoriosPage() {
     }),
     prisma.segmento.findMany({
       where: { ativo: true },
-      select: { id: true, nome: true, cor: true },
+      select: { id: true, nome: true, slug: true, cor: true },
       orderBy: { ordem: "asc" },
     }),
     prisma.campoEmpresa.findMany({
       where: { visivel: true },
-      select: { id: true, label: true, tipo: true },
+      select: { id: true, label: true, tipo: true, segmentoId: true, opcoes: true },
       orderBy: { ordem: "asc" },
     }),
   ]);
@@ -79,11 +80,13 @@ export default async function RelatoriosPage() {
         </div>
       </section>
 
-      <RelatorioBuilder
+      <RelatoriosTabs
         dimensoes={dimensoes}
         metricas={metricas}
         categorias={categorias}
         segmentos={segmentos}
+        camposCustom={camposVisiveis}
+        builtinColumns={EMPRESA_BUILTIN_COLUMNS}
       />
     </main>
   );

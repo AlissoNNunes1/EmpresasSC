@@ -1,10 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { buildEmpresaWhere } from "@/lib/services/empresa/filters";
+import { buildEmpresaWhere, type CampoCustomFiltro } from "@/lib/services/empresa/filters";
 import { buildEmpresaOrderBy } from "@/lib/services/empresa/sort";
 import type { FiltrosEmpresaInput } from "@/lib/validations/empresa";
 
-export async function findEmpresas(filters: FiltrosEmpresaInput, segmentoSlug?: string) {
-  const where = buildEmpresaWhere(filters);
+export async function findEmpresas(
+  filters: FiltrosEmpresaInput,
+  segmentoSlug?: string,
+  camposCustomFiltro?: CampoCustomFiltro[],
+) {
+  const where = buildEmpresaWhere(filters, camposCustomFiltro);
   if (segmentoSlug) {
     where.segmento = { slug: segmentoSlug };
   }

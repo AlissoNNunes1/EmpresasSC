@@ -1,5 +1,13 @@
 import { findEmpresas } from "@/lib/services/empresa/query";
-import { buildEmpresaExportFilename, buildEmpresaExportFilters, buildEmpresaExportRows, buildRelatorioExportRows, toCsv } from "@/lib/services/export";
+import {
+  buildEmpresaExportCamposFiltro,
+  buildEmpresaExportColumns,
+  buildEmpresaExportFilename,
+  buildEmpresaExportFilters,
+  buildEmpresaExportRows,
+  buildRelatorioExportRows,
+  toCsv,
+} from "@/lib/services/export";
 import { runRelatorioQuery } from "@/lib/services/relatorio/query";
 import { requireApiAuth } from "@/lib/session";
 import { filtrosEmpresaSchema } from "@/lib/validations/empresa";
@@ -50,10 +58,12 @@ export async function GET(request: NextRequest) {
   }
 
   const segmentoSlug = searchParams.get("segmentoSlug") ?? undefined;
-  const empresas = await findEmpresas(parsedFilters.data, segmentoSlug);
+  const camposCustomFiltro = buildEmpresaExportCamposFiltro(searchParams);
+  const columns = buildEmpresaExportColumns(searchParams);
+  const empresas = await findEmpresas(parsedFilters.data, segmentoSlug, camposCustomFiltro);
   const generatedAt = new Date();
   const sourceLabel = "Empresas";
-  const csv = toCsv(buildEmpresaExportRows(empresas));
+  const csv = toCsv(buildEmpresaExportRows(empresas, { columns }));
 
   return new NextResponse(csv, {
     status: 200,

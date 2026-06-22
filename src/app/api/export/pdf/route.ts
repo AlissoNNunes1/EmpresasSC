@@ -1,5 +1,15 @@
 import { findEmpresas } from "@/lib/services/empresa/query";
-import { buildEmpresaExportContext, buildEmpresaExportFilename, buildEmpresaExportFilters, buildEmpresaExportRows, buildRelatorioExportRows, toPdfBuffer, toReportPdfBuffer } from "@/lib/services/export";
+import {
+  buildEmpresaExportCamposFiltro,
+  buildEmpresaExportColumns,
+  buildEmpresaExportContext,
+  buildEmpresaExportFilename,
+  buildEmpresaExportFilters,
+  buildEmpresaExportRows,
+  buildRelatorioExportRows,
+  toPdfBuffer,
+  toReportPdfBuffer,
+} from "@/lib/services/export";
 import { runRelatorioQuery } from "@/lib/services/relatorio/query";
 import { requireApiAuth } from "@/lib/session";
 import { filtrosEmpresaSchema } from "@/lib/validations/empresa";
@@ -60,11 +70,13 @@ export async function GET(request: NextRequest) {
   }
 
   const segmentoSlug = searchParams.get("segmentoSlug") ?? undefined;
-  const empresas = await findEmpresas(parsedFilters.data, segmentoSlug);
+  const camposCustomFiltro = buildEmpresaExportCamposFiltro(searchParams);
+  const columns = buildEmpresaExportColumns(searchParams);
+  const empresas = await findEmpresas(parsedFilters.data, segmentoSlug, camposCustomFiltro);
   const generatedAt = new Date();
   const sourceLabel = "Empresas";
   const pdfBytes = await toPdfBuffer(
-    buildEmpresaExportRows(empresas),
+    buildEmpresaExportRows(empresas, { columns }),
     buildEmpresaExportContext({
       sourceLabel,
       totalRecords: empresas.length,

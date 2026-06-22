@@ -15,33 +15,40 @@ export type EmpresaExportContext = {
   filters?: FiltrosEmpresaInput;
 };
 
-export type EmpresaExportRow = {
-  ID: number;
-  "Razão Social": string;
-  "Nome Fantasia": string;
-  CNPJ: string;
-  Categoria: string;
-  Porte: string;
-  Bairro: string;
-  "Atividade Principal": string;
-  "Número de Empregados": number;
-  Situação: string;
-};
-
 export type RelatorioExportRow = {
   Grupo: string;
   Valor: number;
 };
 
-const PDF_COLUMNS: Array<{ key: keyof EmpresaExportRow; label: string; width: number }> = [
-  { key: "Razão Social", label: "Razão Social", width: 170 },
-  { key: "CNPJ", label: "CNPJ", width: 100 },
-  { key: "Categoria", label: "Categoria", width: 88 },
-  { key: "Porte", label: "Porte", width: 62 },
-  { key: "Bairro", label: "Bairro", width: 92 },
-  { key: "Número de Empregados", label: "Empregados", width: 72 },
-  { key: "Situação", label: "Situação", width: 82 },
+// Colunas embutidas disponíveis para a consulta avançada — usadas tanto na UI (seletor de colunas)
+// quanto como chaves dos objetos retornados por buildEmpresaExportRows.
+export const EMPRESA_BUILTIN_COLUMNS: string[] = [
+  "Razão Social",
+  "Nome Fantasia",
+  "CNPJ",
+  "Segmento",
+  "Categoria",
+  "Porte",
+  "Situação",
+  "Atividade Principal",
+  "Número de Empregados",
+  "Bairro",
+  "Logradouro",
+  "CEP",
+  "Contato",
 ];
+
+const TIPO_RESPONSAVEL_LABEL: Record<string, string> = {
+  PROPRIETARIO: "Proprietário",
+  GERENTE: "Gerente",
+  RH: "RH",
+};
+
+function formatContato(responsaveis: EmpresaRecord["responsaveis"]): string {
+  return (responsaveis ?? [])
+    .map((r) => `${r.nome} (${TIPO_RESPONSAVEL_LABEL[r.tipo] ?? r.tipo}): ${r.contato}`)
+    .join(" | ");
+}
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
   dateStyle: "short",
@@ -49,6 +56,29 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 });
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("pt-BR");
+
+// "columns" chega como lista separada por vírgula com os labels das colunas desejadas (ex.: "Razão Social,CNPJ,Contato")
+export function buildEmpresaExportColumns(searchParams: URLSearchParams): string[] | undefined {
+  const raw = searchParams.get("columns");
+  if (!raw) return undefined;
+  const columns = raw.split(",").map((c) => c.trim()).filter(Boolean);
+  return columns.length > 0 ? columns : undefined;
+}
+
+// Filtros de campos customizados chegam como múltiplos "cf=<campoId>:<valor>"
+export function buildEmpresaExportCamposFiltro(searchParams: URLSearchParams): Array<{ campoId: number; valor: string }> {
+  return searchParams
+    .getAll("cf")
+    .map((raw) => {
+      const separatorIndex = raw.indexOf(":");
+      if (separatorIndex < 0) return null;
+      const campoId = Number(raw.slice(0, separatorIndex));
+      const valor = raw.slice(separatorIndex + 1).trim();
+      if (!Number.isFinite(campoId) || !valor) return null;
+      return { campoId, valor };
+    })
+    .filter((f): f is { campoId: number; valor: string } => f !== null);
+}
 
 export function buildEmpresaExportFilters(searchParams: URLSearchParams): FiltrosEmpresaInput {
   return {
@@ -66,9 +96,9 @@ export function buildEmpresaExportFilters(searchParams: URLSearchParams): Filtro
 }
 
 // Campos customizados visíveis são adicionados dinamicamente — sem hardcode
-export function buildEmpresaExportRows(empresas: EmpresaRecord[]): ExportRow[] {
+export function buildEmpresaExportRows(empresas: EmpresaRecord[], options?: { columns?: string[] }): ExportRow[] {
   return empresas.map((empresa) => {
-    const baseRow: ExportRow = {
+    const fullRow: ExportRow = {
       ID: empresa.id,
       "Razão Social": empresa.razaoSocial,
       "Nome Fantasia": empresa.nomeFantasia ?? "",
@@ -82,14 +112,26 @@ export function buildEmpresaExportRows(empresas: EmpresaRecord[]): ExportRow[] {
       "Atividade Principal": empresa.atividadePrincipal,
       "Número de Empregados": empresa.numeroEmpregados,
       Situação: empresa.situacao,
+      Contato: formatContato(empresa.responsaveis),
     };
 
     // Adiciona cada campo customizado como coluna — label do campo = cabeçalho da coluna
     for (const cv of empresa.camposCustom ?? []) {
-      baseRow[cv.campo.label] = cv.valor;
+      fullRow[cv.campo.label] = cv.valor;
     }
 
-    return baseRow;
+    const columns = options?.columns;
+    if (!columns || columns.length === 0) {
+      return fullRow;
+    }
+
+    const filteredRow: ExportRow = {};
+    for (const column of columns) {
+      if (column in fullRow) {
+        filteredRow[column] = fullRow[column];
+      }
+    }
+    return filteredRow;
   });
 }
 
@@ -164,28 +206,57 @@ export async function toPdfBuffer(rows: ExportRow[], context: EmpresaExportConte
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const pageSize: [number, number] = [842, 595];
   const margins = { left: 32, right: 32, top: 28, bottom: 30 };
+  const usableWidth = pageSize[0] - margins.left - margins.right;
+
+  const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+  const columns = buildDynamicPdfColumns(headers, rows, usableWidth);
 
   let page = pdfDoc.addPage(pageSize);
   let cursorY = drawPdfHeader(page, font, boldFont, context, margins);
   cursorY -= 18;
 
-  cursorY = drawPdfTableHeader(page, font, boldFont, cursorY, margins);
+  cursorY = drawGenericPdfTableHeader(page, boldFont, cursorY, margins, columns);
 
   rows.forEach((row, index) => {
-    const rowHeight = calculatePdfRowHeight(row, font);
+    const rowHeight = calculateGenericPdfRowHeight(row, font, columns);
 
     if (cursorY - rowHeight < margins.bottom) {
       page = pdfDoc.addPage(pageSize);
       cursorY = drawPdfHeader(page, font, boldFont, context, margins, false);
       cursorY -= 18;
-      cursorY = drawPdfTableHeader(page, font, boldFont, cursorY, margins);
+      cursorY = drawGenericPdfTableHeader(page, boldFont, cursorY, margins, columns);
     }
 
-    drawPdfRow(page, row, font, cursorY - rowHeight, rowHeight, margins, index);
+    drawGenericPdfRow(page, row, font, cursorY - rowHeight, rowHeight, margins, columns, index);
     cursorY -= rowHeight;
   });
 
   return pdfDoc.save();
+}
+
+// Distribui a largura disponível proporcionalmente ao conteúdo de cada coluna,
+// permitindo que o PDF acompanhe qualquer seleção de colunas (fixas ou customizadas).
+function buildDynamicPdfColumns(
+  headers: string[],
+  rows: ExportRow[],
+  usableWidth: number,
+): Array<{ key: string; label: string; width: number }> {
+  if (headers.length === 0) {
+    return [];
+  }
+
+  const weights = headers.map((header) => {
+    const maxContentLength = rows.reduce((max, row) => Math.max(max, normalizeCell(row[header]).length), header.length);
+    return Math.max(maxContentLength, 6);
+  });
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const minWidth = 50;
+
+  return headers.map((header, i) => ({
+    key: header,
+    label: header,
+    width: Math.max(minWidth, Math.round((weights[i] / totalWeight) * usableWidth)),
+  }));
 }
 
 export async function toReportPdfBuffer(rows: ExportRow[], context: EmpresaExportContext): Promise<Uint8Array> {
@@ -330,81 +401,6 @@ function drawPdfHeader(
   return summaryY - 16;
 }
 
-function drawPdfTableHeader(
-  page: PDFPage,
-  font: PDFFont,
-  boldFont: PDFFont,
-  y: number,
-  margins: { left: number; right: number; top: number; bottom: number },
-): number {
-  const headerHeight = 24;
-  let x = margins.left;
-
-  for (const column of PDF_COLUMNS) {
-    page.drawRectangle({
-      x,
-      y: y - headerHeight,
-      width: column.width,
-      height: headerHeight,
-      color: rgb(0.89, 0.92, 0.97),
-      borderColor: rgb(0.78, 0.82, 0.89),
-      borderWidth: 0.8,
-    });
-
-    page.drawText(column.label, {
-      x: x + 5,
-      y: y - 16,
-      size: 9,
-      font: boldFont,
-      color: rgb(0.13, 0.18, 0.28),
-      maxWidth: column.width - 10,
-    });
-
-    x += column.width;
-  }
-
-  return y - headerHeight;
-}
-
-function drawPdfRow(
-  page: PDFPage,
-  row: ExportRow,
-  font: PDFFont,
-  rowY: number,
-  rowHeight: number,
-  margins: { left: number; right: number; top: number; bottom: number },
-  index: number,
-): void {
-  let x = margins.left;
-  const rowFill = index % 2 === 0 ? rgb(1, 1, 1) : rgb(0.98, 0.99, 1);
-
-  for (const column of PDF_COLUMNS) {
-    page.drawRectangle({
-      x,
-      y: rowY,
-      width: column.width,
-      height: rowHeight,
-      color: rowFill,
-      borderColor: rgb(0.84, 0.87, 0.91),
-      borderWidth: 0.6,
-    });
-
-    const lines = wrapText(font, normalizeCell(row[column.key]), 8.2, column.width - 10);
-    lines.forEach((line, lineIndex) => {
-      page.drawText(line, {
-        x: x + 5,
-        y: rowY + rowHeight - 12 - lineIndex * 9.2,
-        size: 8.2,
-        font,
-        color: rgb(0.16, 0.18, 0.22),
-        maxWidth: column.width - 10,
-      });
-    });
-
-    x += column.width;
-  }
-}
-
 function drawGenericPdfTableHeader(
   page: PDFPage,
   boldFont: PDFFont,
@@ -488,15 +484,6 @@ function calculateGenericPdfRowHeight(
   columns: ReadonlyArray<{ key: string; label: string; width: number }>,
 ): number {
   const maxLines = columns.reduce((max, column) => {
-    const lines = wrapText(font, normalizeCell(row[column.key]), 8.2, column.width - 10);
-    return Math.max(max, lines.length);
-  }, 1);
-
-  return Math.max(22, maxLines * 9.2 + 8);
-}
-
-function calculatePdfRowHeight(row: ExportRow, font: PDFFont): number {
-  const maxLines = PDF_COLUMNS.reduce((max, column) => {
     const lines = wrapText(font, normalizeCell(row[column.key]), 8.2, column.width - 10);
     return Math.max(max, lines.length);
   }, 1);
