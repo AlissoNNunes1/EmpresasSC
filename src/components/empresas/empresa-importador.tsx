@@ -26,6 +26,12 @@ type ResultadoImportacao = {
     cnpj: string;
     campos: Array<{ campo: string; valorArquivo: string; valorBanco: string }>;
   }>;
+  possiveisDuplicatas: Array<{
+    a: { ref: string; nome: string; cnpj: string };
+    b: { ref: string; nome: string; cnpj: string };
+    score: number;
+    motivos: string[];
+  }>;
 };
 
 type ColMapping = {
@@ -375,6 +381,21 @@ export function EmpresaImportador({ exibirEmModal = false, segmentoSlug }: Empre
           <ul className="space-y-0.5 text-xs text-amber-800">
             {dryRunResult.erros.slice(0, 8).map((e) => (
               <li key={`${e.linha}-${e.erro}`}>Linha {e.linha}: {e.erro}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {dryRunResult.possiveisDuplicatas.length > 0 && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+          <p className="mb-1.5 text-sm font-semibold text-blue-900">
+            {dryRunResult.possiveisDuplicatas.length} possível{dryRunResult.possiveisDuplicatas.length !== 1 ? "is" : ""} duplicata{dryRunResult.possiveisDuplicatas.length !== 1 ? "s" : ""} — não bloqueiam a importação, confira antes de confirmar
+          </p>
+          <ul className="space-y-1 text-xs text-blue-900">
+            {dryRunResult.possiveisDuplicatas.slice(0, 10).map((d) => (
+              <li key={`${d.a.ref}-${d.b.ref}`}>
+                <strong>{d.a.nome}</strong> ({d.a.ref}) ≈ <strong>{d.b.nome}</strong> ({d.b.ref}) · {Math.round(d.score * 100)}% — {d.motivos.join(", ")}
+              </li>
             ))}
           </ul>
         </div>

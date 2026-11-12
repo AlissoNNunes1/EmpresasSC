@@ -3,6 +3,9 @@ import { onlyDigits } from "@/lib/utils";
 import { PapelUsuario, PorteEmpresa, SituacaoEmpresa, TipoResponsavel } from "@prisma/client";
 import { createHash } from "node:crypto";
 import * as XLSX from "xlsx";
+import Fuse from "fuse.js";
+import { similaridadeTexto } from "./similaridade";
+import { encontrarPossiveisDuplicatas, type PossivelDuplicata, type RegistroComparavel } from "./duplicatas";
 
 type ImportMode = "UPSERT" | "CREATE_ONLY" | "UPDATE_ONLY";
 
@@ -30,6 +33,7 @@ type ImportResult = {
   ignoradas: number;
   erros: ImportError[];
   conflitos: MergeConflict[];
+  possiveisDuplicatas: PossivelDuplicata[];
 };
 
 type MergeConflictField = {
@@ -67,8 +71,8 @@ type RowMap = {
 };
 
 const HEADER_ALIASES: Record<keyof RowMap, string[]> = {
-  estabelecimento: ["estabelecimento", "nome do estabelecimento", "nome estabelecimento", "nome"],
-  razaoSocial: ["razaosocial", "razao social", "razao_social", "razao", "empresa", "nomeempresa", "nome empresarial", "denominacao", "razao social nome empresarial"],
+  estabelecimento: ["estabelecimento", "nome do estabelecimento", "nome estabelecimento"],
+  razaoSocial: ["razaosocial", "razao social", "razao_social", "razao", "empresa", "nomeempresa", "nome empresarial", "denominacao", "razao social nome empresarial", "empresa entidade"],
   nomeFantasia: ["nomefantasia", "nome fantasia", "fantasia", "nome comercial", "nome de fantasia"],
   cnpj: ["cnpj", "cnpjcpf", "cnpj cpf", "cnpj cpf do socio", "documento", "doc", "inscricao", "nr documento", "numero documento"],
   categoria: ["categoria", "categorianome", "categoria nome", "setor", "ramo", "ramo de atividade", "segmento"],
@@ -80,37 +84,15 @@ const HEADER_ALIASES: Record<keyof RowMap, string[]> = {
   porte: ["porte", "porte empresa", "tamanho", "classificacao", "classificacao porte"],
   situacao: ["situacao", "status", "situacao cadastral", "situacao da empresa", "ativo"],
   cep: ["cep", "codigo postal", "cod postal"],
-  bairro: ["bairro", "bairro povoado", "bairro / povoado", "bairro localidade", "localidade"],
+  bairro: ["bairro", "bairro povoado", "bairro / povoado", "bairro localidade", "localidade", "local bairro"],
   logradouro: ["logradouro", "endereco", "rua", "endereço", "rua av", "rua avenida", "logradouro numero", "logradouro e numero"],
-  responsavelNome: ["responsavel", "responsavelnome", "responsavel nome", "proprietario", "contatonome", "proprietario gerente rh", "proprietario / gerente / rh", "socio", "nome do socio", "representante", "nome representante"],
+  responsavelNome: ["responsavel", "responsavelnome", "responsavel nome", "proprietario", "contatonome", "proprietario gerente rh", "proprietario / gerente / rh", "socio", "nome do socio", "representante", "nome representante", "contato"],
   responsavelCpf: ["responsavelcpf", "responsavel cpf", "cpfresponsavel", "cpf socio", "cpf do socio", "cpf representante"],
-  responsavelContato: ["responsavelcontato", "responsavel contato", "telefone", "contato", "celular", "fone", "tel", "whatsapp", "email", "e-mail"],
+  responsavelContato: ["responsavelcontato", "responsavel contato", "telefone", "celular", "fone", "tel", "whatsapp", "email", "e-mail"],
   responsavelTipo: ["responsaveltipo", "responsavel tipo", "tiporesponsavel", "tipo socio", "cargo"],
 };
 
-// ── similaridade de bigrama (Dice) ────────────────────────────────────────────
 // Usada como fallback quando não há correspondência exata nos aliases.
-
-function bigramSimilarity(a: string, b: string): number {
-  if (a === b) return 1;
-  if (a.length < 2 || b.length < 2) return 0;
-
-  const bigrams = (s: string): Map<string, number> => {
-    const m = new Map<string, number>();
-    for (let i = 0; i < s.length - 1; i++) {
-      const bg = s.slice(i, i + 2);
-      m.set(bg, (m.get(bg) ?? 0) + 1);
-    }
-    return m;
-  };
-
-  const bA = bigrams(a);
-  const bB = bigrams(b);
-  let inter = 0;
-  for (const [bg, cnt] of bA) inter += Math.min(cnt, bB.get(bg) ?? 0);
-  return (2 * inter) / (a.length - 1 + (b.length - 1));
-}
-
 const FUZZY_THRESHOLD = 0.72;
 
 // ── Auto-resolução de conflitos triviais ──────────────────────────────────────
@@ -202,6 +184,43 @@ function normalizeHeader(value: string): string {
 
 function normalizeSemanticValue(value: string): string {
   return normalizeHeader(value);
+}
+
+// Aliases comparados já normalizados: "e-mail" e "família" nunca casariam com o cabeçalho normalizado sem isso.
+const NORMALIZED_HEADER_ALIASES = Object.fromEntries(
+  Object.entries(HEADER_ALIASES).map(([target, aliases]) => [target, aliases.map(normalizeHeader)]),
+) as Record<keyof RowMap, string[]>;
+
+// Planilhas podem rotular como "e-mail" uma coluna com endereço. Valor sem "@" vira logradouro.
+const EMAIL_HEADERS = new Set(["email", "e mail"]);
+
+// Busca aproximada de cabeçalho: cada alias é um item, carregando o campo de destino.
+const aliasIndex = new Fuse(
+  Object.entries(NORMALIZED_HEADER_ALIASES).flatMap(([target, aliases]) =>
+    aliases.map((alias) => ({ alias, target: target as keyof RowMap })),
+  ),
+  { keys: ["alias"], includeScore: true, ignoreLocation: true, threshold: 1 - FUZZY_THRESHOLD },
+);
+
+// Fuse dá score 0 para igual; convertido para similaridade 0..1 e comparado com FUZZY_THRESHOLD.
+function buscarAliasAproximado(header: string): { target: keyof RowMap; similaridade: number } | null {
+  const [melhor] = aliasIndex.search(header, { limit: 1 });
+  if (!melhor || melhor.score === undefined) return null;
+
+  const similaridade = 1 - melhor.score;
+  return similaridade >= FUZZY_THRESHOLD ? { target: melhor.item.target, similaridade } : null;
+}
+
+// "Nome" sozinho é ambíguo. Se a planilha também tem coluna de empresa (razão social
+// ou estabelecimento), "Nome" é a pessoa responsável; caso contrário, é o estabelecimento.
+function nomeRefereSePessoa(headers: string[]): boolean {
+  return headers.some((header) => {
+    const normalized = normalizeHeader(header);
+    return normalized !== "nome" && (
+      NORMALIZED_HEADER_ALIASES.razaoSocial.includes(normalized) ||
+      NORMALIZED_HEADER_ALIASES.estabelecimento.includes(normalized)
+    );
+  });
 }
 
 function asString(value: unknown): string {
@@ -316,15 +335,28 @@ function customCampoKey(id: number): string {
 function mapRow(raw: Record<string, unknown>, camposCustom: CampoImportDef[] = []): RowMap {
   const mapped: RowMap = {};
 
+  let enderecoDeEmailHeader: string | undefined;
+  const nomeEhPessoa = nomeRefereSePessoa(Object.keys(raw));
+
   for (const [header, value] of Object.entries(raw)) {
     const normalized = normalizeHeader(header);
     const text = asString(value);
 
     if (!text) continue;
 
+    if (normalized === "nome") {
+      mapped[nomeEhPessoa ? "responsavelNome" : "estabelecimento"] = text;
+      continue;
+    }
+
+    if (EMAIL_HEADERS.has(normalized) && !text.includes("@")) {
+      enderecoDeEmailHeader = text;
+      continue;
+    }
+
     // 1. Correspondência exata nos aliases
     let matched = false;
-    for (const [target, aliases] of Object.entries(HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
+    for (const [target, aliases] of Object.entries(NORMALIZED_HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
       if (aliases.includes(normalized)) {
         mapped[target] = text;
         matched = true;
@@ -333,20 +365,10 @@ function mapRow(raw: Record<string, unknown>, camposCustom: CampoImportDef[] = [
     }
     if (matched) continue;
 
-    // 2. Correspondência fuzzy (bigrama Dice ≥ threshold) como fallback
-    let bestTarget: keyof RowMap | null = null;
-    let bestScore = 0;
-    for (const [target, aliases] of Object.entries(HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
-      for (const alias of aliases) {
-        const score = bigramSimilarity(normalized, alias);
-        if (score >= FUZZY_THRESHOLD && score > bestScore) {
-          bestScore = score;
-          bestTarget = target as keyof RowMap;
-        }
-      }
-    }
-    if (bestTarget && !mapped[bestTarget]) {
-      mapped[bestTarget] = text;
+    // 2. Correspondência aproximada (Fuse sobre os aliases) como fallback
+    const aproximado = buscarAliasAproximado(normalized);
+    if (aproximado && !mapped[aproximado.target]) {
+      mapped[aproximado.target] = text;
       continue;
     }
 
@@ -357,12 +379,14 @@ function mapRow(raw: Record<string, unknown>, camposCustom: CampoImportDef[] = [
         normalizeHeader(campo.nome),
       ];
       const key = customCampoKey(campo.id);
-      if (campoAliases.includes(normalized) || campoAliases.some((a) => bigramSimilarity(normalized, a) >= FUZZY_THRESHOLD)) {
+      if (campoAliases.includes(normalized) || campoAliases.some((a) => similaridadeTexto(normalized, a) >= FUZZY_THRESHOLD)) {
         (mapped as Record<string, string>)[key] = text;
         break;
       }
     }
   }
+
+  if (!mapped.logradouro && enderecoDeEmailHeader) mapped.logradouro = enderecoDeEmailHeader;
 
   // 3. Fallback: razaoSocial → estabelecimento e vice-versa
   if (!mapped.razaoSocial && mapped.estabelecimento) mapped.razaoSocial = mapped.estabelecimento;
@@ -377,9 +401,13 @@ type ParsedSheetRow = Record<string, unknown>;
 function isLikelyHeaderRow(row: unknown[]): boolean {
   const normalizedCells = row.map((cell) => normalizeSheetHeader(cell));
 
-  const hasEstabelecimento = normalizedCells.includes("estabelecimento");
+  // "nome" conta como estabelecimento quando não há coluna de empresa; ver nomeRefereSePessoa.
+  const hasEstabelecimento = normalizedCells.includes("estabelecimento") || normalizedCells.includes("nome");
   const hasRazaoSocial = normalizedCells.some((c) =>
-    ["razao social", "razaosocial", "razao", "empresa", "nomeempresa"].includes(c)
+    ["razao social", "razaosocial", "razao", "empresa", "nomeempresa", "empresa entidade"].includes(c)
+  );
+  const hasEnderecoOuBairro = normalizedCells.some((c) =>
+    NORMALIZED_HEADER_ALIASES.logradouro.includes(c) || NORMALIZED_HEADER_ALIASES.bairro.includes(c)
   );
   const hasDocumento =
     normalizedCells.includes("cnpj cpf") ||
@@ -395,6 +423,9 @@ function isLikelyHeaderRow(row: unknown[]): boolean {
 
   // Formato simplificado: razão social (ou estabelecimento) + documento
   if ((hasRazaoSocial || hasEstabelecimento) && hasDocumento) return true;
+
+  // Cadastro sem documento: estabelecimento + endereço ou bairro
+  if (hasEstabelecimento && hasEnderecoOuBairro) return true;
 
   return false;
 }
@@ -425,7 +456,7 @@ function hasRowNumberColumn(row: ParsedSheetRow): boolean {
 
 function isLikelyDataRow(row: ParsedSheetRow): boolean {
   const estabelecimento = asString(row.estabelecimento ?? row["estabelecimento"] ?? "");
-  const razaoSocial = asString(row["razao social"] ?? row["razaosocial"] ?? row["razao"] ?? row["empresa"] ?? "");
+  const razaoSocial = asString(row["razao social"] ?? row["razaosocial"] ?? row["razao"] ?? row["empresa"] ?? row["empresa entidade"] ?? "");
   const atividade = asString(row["atividade principal"] ?? row["atividade"] ?? "");
   const documento = asString(row["cnpj cpf"] ?? row["cnpj"] ?? row["cpf"] ?? "");
   const endereco = asString(row.endereco ?? row["endereco"] ?? "");
@@ -531,7 +562,12 @@ function mergeNumeroEnderecoColumn(headers: string[], bodyRows: unknown[][]): st
   return nextHeaders;
 }
 
+// Só títulos com código CNAE são seções de atividade. Título do documento ou nome de bairro são ignorados.
+const CNAE_HEADING_PATTERN = /^\d{4}-?\d(\/\d{2})?\b/;
+
 function applyHeadingAsCategoria(row: ParsedSheetRow, heading: string): void {
+  if (!CNAE_HEADING_PATTERN.test(heading)) return;
+
   const hasAtividade = asString(row["atividade principal"] ?? row["atividade"] ?? row["cnae"] ?? "").trim();
   const hasCategoria = asString(row["categoria"] ?? "").trim();
   if (!hasAtividade && !hasCategoria) {
@@ -890,10 +926,8 @@ export async function parseImportFile(
     }
   }
 
-  return allRows.map((row) => {
-    const mapped = mapRow(row as Record<string, unknown>, camposCustom);
-    return { ...row, ...mapped };
-  });
+  // Retorna só os campos canônicos: reenviar colunas brutas faria "Nome" ser mapeado duas vezes.
+  return allRows.map((row) => mapRow(row as Record<string, unknown>, camposCustom));
 }
 
 type CategoriaCacheItem = {
@@ -1084,14 +1118,10 @@ export function resolveDocumentoFiscal(row: RowMap): { documento: string; origem
   };
 }
 
+const CATEGORIA_PADRAO = "Não informado";
+
 export function resolveCategoriaNome(row: RowMap): string {
-  const candidato = row.categoria?.trim() || row.atividadePrincipal?.trim() || row.estabelecimento?.trim() || "";
-
-  if (!candidato) {
-    throw new Error("Categoria ausente");
-  }
-
-  return candidato;
+  return row.categoria?.trim() || row.atividadePrincipal?.trim() || CATEGORIA_PADRAO;
 }
 
 function resolveRazaoSocial(row: RowMap, cnpj: string): string {
@@ -1285,6 +1315,7 @@ export async function importarEmpresasInteligente(
     ignoradas: 0,
     erros: [],
     conflitos: [],
+    possiveisDuplicatas: [],
   };
 
   if (options.usuarioRole === "VISUALIZADOR") {
@@ -1296,6 +1327,7 @@ export async function importarEmpresasInteligente(
 
   const categoriaCache = await buildCategoriaCache();
   const seenCnpjByLine = new Map<string, number>();
+  const comparaveisDoArquivo: RegistroComparavel[] = [];
 
   for (let i = 0; i < rows.length; i += 1) {
     const linha = i + 2;
@@ -1355,6 +1387,15 @@ export async function importarEmpresasInteligente(
           contato: responsavelContato,
         },
       };
+
+      comparaveisDoArquivo.push({
+        ref: `linha ${linha}`,
+        cnpj,
+        nome: razaoSocial,
+        nomeFantasia: payload.nomeFantasia,
+        telefone: responsavelContato,
+        logradouro: payload.endereco.logradouro,
+      });
 
       const existente = await prisma.empresa.findUnique({
         where: { cnpj },
@@ -1460,7 +1501,35 @@ export async function importarEmpresasInteligente(
     }
   }
 
+  if (options.dryRun) {
+    const empresasDoBanco = await carregarEmpresasComparaveis();
+    result.possiveisDuplicatas = encontrarPossiveisDuplicatas(comparaveisDoArquivo, empresasDoBanco);
+  }
+
   return result;
+}
+
+// Empresas já cadastradas, no formato comparável usado na detecção de duplicatas.
+async function carregarEmpresasComparaveis(): Promise<RegistroComparavel[]> {
+  const empresas = await prisma.empresa.findMany({
+    select: {
+      id: true,
+      cnpj: true,
+      razaoSocial: true,
+      nomeFantasia: true,
+      endereco: { select: { logradouro: true } },
+      responsaveis: { select: { contato: true }, orderBy: { id: "asc" }, take: 1 },
+    },
+  });
+
+  return empresas.map((empresa) => ({
+    ref: `empresa #${empresa.id}`,
+    cnpj: empresa.cnpj,
+    nome: empresa.razaoSocial,
+    nomeFantasia: empresa.nomeFantasia,
+    telefone: empresa.responsaveis[0]?.contato ?? "",
+    logradouro: empresa.endereco?.logradouro ?? "",
+  }));
 }
 
 // ── Detecção de mapeamento de colunas ────────────────────────────────────────
@@ -1477,9 +1546,20 @@ function analyzeHeadersIntoMappings(
     if (!normalized || seenSources.has(sourceLabel)) continue;
     seenSources.add(sourceLabel);
 
+    if (normalized === "nome") {
+      const target: keyof RowMap = nomeRefereSePessoa(sourceHeaders) ? "responsavelNome" : "estabelecimento";
+      colunas.push({ source: sourceLabel, target, targetLabel: FIELD_LABELS[target], method: "exact" });
+      continue;
+    }
+
+    if (EMAIL_HEADERS.has(normalized)) {
+      colunas.push({ source: sourceLabel, target: "logradouro", targetLabel: FIELD_LABELS.logradouro, method: "exact" });
+      continue;
+    }
+
     // 1. Correspondência exata
     let found = false;
-    for (const [target, aliases] of Object.entries(HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
+    for (const [target, aliases] of Object.entries(NORMALIZED_HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
       if (aliases.includes(normalized)) {
         colunas.push({ source: sourceLabel, target, targetLabel: FIELD_LABELS[target], method: "exact" });
         found = true;
@@ -1488,25 +1568,15 @@ function analyzeHeadersIntoMappings(
     }
     if (found) continue;
 
-    // 2. Correspondência fuzzy
-    let bestTarget: keyof RowMap | null = null;
-    let bestScore = 0;
-    for (const [target, aliases] of Object.entries(HEADER_ALIASES) as Array<[keyof RowMap, string[]]>) {
-      for (const alias of aliases) {
-        const score = bigramSimilarity(normalized, alias);
-        if (score >= FUZZY_THRESHOLD && score > bestScore) {
-          bestScore = score;
-          bestTarget = target as keyof RowMap;
-        }
-      }
-    }
-    if (bestTarget) {
+    // 2. Correspondência aproximada
+    const aproximado = buscarAliasAproximado(normalized);
+    if (aproximado) {
       colunas.push({
         source: sourceLabel,
-        target: bestTarget,
-        targetLabel: FIELD_LABELS[bestTarget],
+        target: aproximado.target,
+        targetLabel: FIELD_LABELS[aproximado.target],
         method: "fuzzy",
-        score: Math.round(bestScore * 100),
+        score: Math.round(aproximado.similaridade * 100),
       });
       continue;
     }
@@ -1515,7 +1585,7 @@ function analyzeHeadersIntoMappings(
     let foundCustom = false;
     for (const campo of camposCustom) {
       const campoAliases = [normalizeHeader(campo.label), normalizeHeader(campo.nome)];
-      const scores = campoAliases.map((a) => bigramSimilarity(normalized, a));
+      const scores = campoAliases.map((a) => similaridadeTexto(normalized, a));
       const maxScore = Math.max(...scores);
       if (campoAliases.includes(normalized) || maxScore >= FUZZY_THRESHOLD) {
         colunas.push({
