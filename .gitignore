@@ -42,3 +42,9 @@ next-env.d.ts
 
 /src/generated/prisma
 docs/
+
+# Configuração local do Claude Code
+.claude/
+
+# Planilhas de origem com dados pessoais (não versionar)
+/*.xlsx
