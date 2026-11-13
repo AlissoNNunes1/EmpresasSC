@@ -3,6 +3,7 @@
 import { normalizarTexto, similaridadeTexto } from "./similaridade";
 
 export type RegistroComparavel = {
+  id?: number;
   ref: string;
   cnpj: string;
   nome: string;
@@ -11,9 +12,11 @@ export type RegistroComparavel = {
   logradouro?: string;
 };
 
+export type LadoDuplicata = { id?: number; ref: string; nome: string; cnpj: string };
+
 export type PossivelDuplicata = {
-  a: { ref: string; nome: string; cnpj: string };
-  b: { ref: string; nome: string; cnpj: string };
+  a: LadoDuplicata;
+  b: LadoDuplicata;
   score: number;
   motivos: string[];
 };
@@ -25,6 +28,8 @@ const PALAVRAS_IRRELEVANTES = new Set(["de", "da", "do", "das", "dos", "e", "ltd
 // Nome parecido sozinho não basta: filiais ("Mercearia X LA" x "Mercearia X MD") têm nome quase igual.
 const NOME_MINIMO_PARECIDO = 0.6;
 const ENDERECO_PARECIDO = 0.8;
+
+const LIMITE_BLOCO_COMUM = 200;
 
 const PESO_NOME = 0.6;
 const PESO_TELEFONE = 0.2;
@@ -83,8 +88,8 @@ function percentual(valor: number): string {
   return `${Math.round(valor * 100)}%`;
 }
 
-function resumo(registro: RegistroComparavel) {
-  return { ref: registro.ref, nome: registro.nome, cnpj: registro.cnpj };
+function resumo(registro: RegistroComparavel): LadoDuplicata {
+  return { id: registro.id, ref: registro.ref, nome: registro.nome, cnpj: registro.cnpj };
 }
 
 function avaliarPar(a: RegistroComparavel, b: RegistroComparavel): PossivelDuplicata | null {
@@ -144,7 +149,10 @@ export function encontrarPossiveisDuplicatas(
   novos.forEach((registro, i) => {
     const candidatos = new Set<number>();
     for (const chave of chavesDeBloqueio(registro)) {
-      for (const idx of indice.get(chave) ?? []) candidatos.add(idx);
+      const membros = indice.get(chave) ?? [];
+      // Palavra presente em muitos registros ("mercearia") não separa nada e custaria comparar com quase toda a base.
+      if (membros.length > LIMITE_BLOCO_COMUM) continue;
+      for (const idx of membros) candidatos.add(idx);
     }
 
     for (const j of candidatos) {

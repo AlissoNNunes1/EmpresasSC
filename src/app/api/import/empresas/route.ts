@@ -2,9 +2,10 @@ import { registerAccessLog } from "@/lib/access-log";
 import { prisma } from "@/lib/prisma";
 import { refreshDashboardCacheViews } from "@/lib/services/dashboard/refresh";
 import { importarEmpresasInteligente, parseImportFile } from "@/lib/services/empresa/import";
+import { iniciarNormalizacao } from "@/lib/services/normalizacao/empresas";
 import { requireApiAuth } from "@/lib/session";
 import { PapelUsuario } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 const MODE_MAP = {
   upsert: "UPSERT",
@@ -85,6 +86,10 @@ export async function POST(request: NextRequest) {
 
     if (!dryRun && resultado.processadas > 0) {
       refreshDashboardCacheViews();
+      // Normaliza o cadastro inteiro depois da resposta, sem atrasar o usuário.
+      after(() => {
+        iniciarNormalizacao();
+      });
     }
 
     return NextResponse.json(resultado);

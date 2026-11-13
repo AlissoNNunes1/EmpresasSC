@@ -26,6 +26,7 @@ type ResultadoImportacao = {
     cnpj: string;
     campos: Array<{ campo: string; valorArquivo: string; valorBanco: string }>;
   }>;
+  enderecosCompletados: number;
   possiveisDuplicatas: Array<{
     a: { ref: string; nome: string; cnpj: string };
     b: { ref: string; nome: string; cnpj: string };
@@ -384,6 +385,12 @@ export function EmpresaImportador({ exibirEmModal = false, segmentoSlug }: Empre
             ))}
           </ul>
         </div>
+      )}
+
+      {dryRunResult.enderecosCompletados > 0 && (
+        <p className="text-xs text-slate-500">
+          <strong>{dryRunResult.enderecosCompletados}</strong> endereço{dryRunResult.enderecosCompletados !== 1 ? "s" : ""} completado{dryRunResult.enderecosCompletados !== 1 ? "s" : ""} automaticamente pela consulta de CEP/logradouro.
+        </p>
       )}
 
       {dryRunResult.possiveisDuplicatas.length > 0 && (

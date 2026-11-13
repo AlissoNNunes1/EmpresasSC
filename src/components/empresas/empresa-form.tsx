@@ -99,6 +99,45 @@ export function EmpresaDetalheAcoes({ canEdit, canDelete, categorias, empresa }:
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<EmpresaFormState>(() => createFormFromEmpresa(empresa));
 
+  // Autopreenchimento: só preenche campos vazios, nunca sobrescreve o que o usuário digitou.
+  async function consultarEndereco(query: string): Promise<{ cep: string; logradouro: string; bairro: string } | null> {
+    try {
+      const res = await fetch(`/api/enderecos?${query}`);
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function preencherEnderecoPeloCep() {
+    const cep = form.endereco.cep.replace(/\D/g, "");
+    if (cep.length !== 8) return;
+
+    const dados = await consultarEndereco(`cep=${cep}`);
+    if (!dados) return;
+    setForm((prev) => ({
+      ...prev,
+      endereco: {
+        ...prev.endereco,
+        logradouro: prev.endereco.logradouro.trim() ? prev.endereco.logradouro : dados.logradouro,
+        bairro: prev.endereco.bairro.trim() ? prev.endereco.bairro : dados.bairro,
+      },
+    }));
+  }
+
+  async function preencherCepPelaRua() {
+    if (form.endereco.cep.replace(/\D/g, "").length === 8 || !form.endereco.logradouro.trim()) return;
+
+    const dados = await consultarEndereco(
+      `logradouro=${encodeURIComponent(form.endereco.logradouro)}&bairro=${encodeURIComponent(form.endereco.bairro)}`,
+    );
+    if (!dados) return;
+    setForm((prev) => ({
+      ...prev,
+      endereco: { ...prev.endereco, cep: prev.endereco.cep.replace(/\D/g, "").length === 8 ? prev.endereco.cep : dados.cep },
+    }));
+  }
+
   const headerTitulo = useMemo(() => `Editar empresa #${empresa.id}`, [empresa.id]);
 
   function setResponsavelField(index: number, key: keyof Responsavel, value: string) {
@@ -273,9 +312,9 @@ export function EmpresaDetalheAcoes({ canEdit, canDelete, categorias, empresa }:
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Input placeholder="CEP" value={form.endereco.cep} onChange={(event) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, cep: event.target.value } }))} required />
+            <Input placeholder="CEP" value={form.endereco.cep} onChange={(event) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, cep: event.target.value } }))} onBlur={preencherEnderecoPeloCep} required />
             <Input placeholder="Bairro" value={form.endereco.bairro} onChange={(event) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, bairro: event.target.value } }))} required />
-            <Input placeholder="Logradouro" value={form.endereco.logradouro} onChange={(event) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, logradouro: event.target.value } }))} required />
+            <Input placeholder="Logradouro" value={form.endereco.logradouro} onChange={(event) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, logradouro: event.target.value } }))} onBlur={preencherCepPelaRua} required />
           </div>
 
           <div className="space-y-3">

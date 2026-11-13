@@ -35,49 +35,49 @@ enum PapelUsuario {
 }
 
 model Usuario {
-  id            Int                @id @default(autoincrement())
-  nome          String
-  email         String             @unique
-  senhaHash     String
-  papel         PapelUsuario       @default(VISUALIZADOR)
-  ativo         Boolean            @default(true)
-  criadoEm      DateTime           @default(now())
-  atualizadoEm  DateTime           @updatedAt
-  logs          LogAcesso[]
-  segmentos     UsuarioSegmento[]
+  id           Int               @id @default(autoincrement())
+  nome         String
+  email        String            @unique
+  senhaHash    String
+  papel        PapelUsuario      @default(VISUALIZADOR)
+  ativo        Boolean           @default(true)
+  criadoEm     DateTime          @default(now())
+  atualizadoEm DateTime          @updatedAt
+  logs         LogAcesso[]
+  segmentos    UsuarioSegmento[]
 
   @@map("usuarios")
 }
 
 model Segmento {
-  id           Int               @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   nome         String
-  slug         String            @unique
+  slug         String   @unique
   descricao    String?
   cor          String?
   icone        String?
-  ativo        Boolean           @default(true)
-  ordem        Int               @default(999)
-  criadoEm     DateTime          @default(now()) @map("criado_em")
-  atualizadoEm DateTime          @updatedAt @map("atualizado_em")
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(999)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
-  empresas         Empresa[]
-  usuarios         UsuarioSegmento[]
-  areas            Area[]
-  campos           CampoEmpresa[]
-  categorias       Categoria[]
-  campoConfigs     SegmentoCampoConfig[]
+  empresas     Empresa[]
+  usuarios     UsuarioSegmento[]
+  areas        Area[]
+  campos       CampoEmpresa[]
+  categorias   Categoria[]
+  campoConfigs SegmentoCampoConfig[]
 
   @@map("segmentos")
 }
 
 model UsuarioSegmento {
-  id         Int      @id @default(autoincrement())
-  usuarioId  Int      @map("usuario_id")
-  segmentoId Int      @map("segmento_id")
+  id         Int @id @default(autoincrement())
+  usuarioId  Int @map("usuario_id")
+  segmentoId Int @map("segmento_id")
 
-  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  segmento   Segmento @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
+  usuario  Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  segmento Segmento @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
 
   @@unique([usuarioId, segmentoId])
   @@index([usuarioId])
@@ -86,33 +86,33 @@ model UsuarioSegmento {
 }
 
 model Area {
-  id           Int       @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   nome         String
   descricao    String?
   tipo         String
   cor          String?
-  geoJson      String    @map("geo_json")
-  segmentoId   Int?      @map("segmento_id")
-  ativo        Boolean   @default(true)
-  criadoEm     DateTime  @default(now()) @map("criado_em")
-  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+  geoJson      String   @map("geo_json")
+  segmentoId   Int?     @map("segmento_id")
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
-  segmento     Segmento? @relation(fields: [segmentoId], references: [id], onDelete: SetNull)
+  segmento Segmento? @relation(fields: [segmentoId], references: [id], onDelete: SetNull)
 
   @@index([segmentoId])
   @@map("areas")
 }
 
 model Categoria {
-  id           Int       @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   nome         String
-  ativo        Boolean   @default(true)
-  segmentoId   Int?      @map("segmento_id")
-  criadoEm     DateTime  @default(now())
-  atualizadoEm DateTime  @updatedAt
+  ativo        Boolean  @default(true)
+  segmentoId   Int?     @map("segmento_id")
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
-  segmento     Segmento? @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
-  empresas     Empresa[]
+  segmento            Segmento?             @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
+  empresas            Empresa[]
   configuracoesPadrao ConfiguracaoSistema[] @relation("CategoriaPadrao")
 
   @@unique([nome, segmentoId])
@@ -121,25 +121,25 @@ model Categoria {
 }
 
 model ConfiguracaoSistema {
-  id                         Int       @id @default(autoincrement())
-  nomeSistema                String    @default("EmpresasSC") @map("nome_sistema")
-  nomeMunicipio              String    @default("Sao Cristovao") @map("nome_municipio")
-  logoUrl                    String?   @map("logo_url")
-  emailInstitucional         String    @default("contato@empresassc.local") @map("email_institucional")
-  minEmpregadosPequena       Int       @default(10) @map("min_empregados_pequena")
-  maxEmpregadosPequena       Int       @default(49) @map("max_empregados_pequena")
-  minEmpregadosMedia         Int       @default(50) @map("min_empregados_media")
-  maxEmpregadosMedia         Int       @default(249) @map("max_empregados_media")
-  categoriaPadraoId          Int?      @map("categoria_padrao_id")
-  politicaSenhaMinCaracteres Int       @default(8) @map("politica_senha_min_caracteres")
-  tempoSessaoMinutos         Int       @default(480) @map("tempo_sessao_minutos")
-  controleLoginAtivo         Boolean   @default(false) @map("controle_login_ativo")
-  integracaoCnpjAtiva        Boolean   @default(false) @map("integracao_cnpj_ativa")
-  webhookUrl                 String?   @map("webhook_url")
-  criadoEm                   DateTime  @default(now()) @map("criado_em")
-  atualizadoEm               DateTime  @updatedAt @map("atualizado_em")
+  id                         Int      @id @default(autoincrement())
+  nomeSistema                String   @default("EmpresasSC") @map("nome_sistema")
+  nomeMunicipio              String   @default("Sao Cristovao") @map("nome_municipio")
+  logoUrl                    String?  @map("logo_url")
+  emailInstitucional         String   @default("contato@empresassc.local") @map("email_institucional")
+  minEmpregadosPequena       Int      @default(10) @map("min_empregados_pequena")
+  maxEmpregadosPequena       Int      @default(49) @map("max_empregados_pequena")
+  minEmpregadosMedia         Int      @default(50) @map("min_empregados_media")
+  maxEmpregadosMedia         Int      @default(249) @map("max_empregados_media")
+  categoriaPadraoId          Int?     @map("categoria_padrao_id")
+  politicaSenhaMinCaracteres Int      @default(8) @map("politica_senha_min_caracteres")
+  tempoSessaoMinutos         Int      @default(480) @map("tempo_sessao_minutos")
+  controleLoginAtivo         Boolean  @default(false) @map("controle_login_ativo")
+  integracaoCnpjAtiva        Boolean  @default(false) @map("integracao_cnpj_ativa")
+  webhookUrl                 String?  @map("webhook_url")
+  criadoEm                   DateTime @default(now()) @map("criado_em")
+  atualizadoEm               DateTime @updatedAt @map("atualizado_em")
 
-  categoriaPadrao            Categoria? @relation("CategoriaPadrao", fields: [categoriaPadraoId], references: [id], onDelete: SetNull)
+  categoriaPadrao Categoria? @relation("CategoriaPadrao", fields: [categoriaPadraoId], references: [id], onDelete: SetNull)
 
   @@index([categoriaPadraoId])
   @@map("configuracoes_sistema")
@@ -161,11 +161,13 @@ model Empresa {
   criadoEm           DateTime        @default(now())
   atualizadoEm       DateTime        @updatedAt
 
-  categoria          Categoria       @relation(fields: [categoriaId], references: [id])
-  segmento           Segmento?       @relation(fields: [segmentoId], references: [id], onDelete: SetNull)
+  categoria          Categoria           @relation(fields: [categoriaId], references: [id])
+  segmento           Segmento?           @relation(fields: [segmentoId], references: [id], onDelete: SetNull)
   endereco           Endereco?
   responsaveis       Pessoa[]
   camposCustom       ValorCampoEmpresa[]
+  duplicataDecisoesA DuplicataDecisao[]  @relation("duplicataA")
+  duplicataDecisoesB DuplicataDecisao[]  @relation("duplicataB")
 
   @@index([categoriaId])
   @@index([porte])
@@ -175,27 +177,41 @@ model Empresa {
 }
 
 model Endereco {
-  id         Int      @id @default(autoincrement())
-  empresaId  Int      @unique @map("empresa_id")
+  id         Int    @id @default(autoincrement())
+  empresaId  Int    @unique @map("empresa_id")
   cep        String
   bairro     String
   logradouro String
 
-  empresa    Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@index([bairro])
   @@map("enderecos")
 }
 
-model Pessoa {
-  id         Int             @id @default(autoincrement())
-  empresaId  Int             @map("empresa_id")
-  nome       String
-  tipo       TipoResponsavel
-  cpf        String
-  contato    String
+// Par de empresas que a revisão marcou como "não são duplicatas". Sempre com empresaAId < empresaBId.
+model DuplicataDecisao {
+  id         Int      @id @default(autoincrement())
+  empresaAId Int      @map("empresa_a_id")
+  empresaBId Int      @map("empresa_b_id")
+  criadoEm   DateTime @default(now()) @map("criado_em")
 
-  empresa    Empresa         @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  empresaA Empresa @relation("duplicataA", fields: [empresaAId], references: [id], onDelete: Cascade)
+  empresaB Empresa @relation("duplicataB", fields: [empresaBId], references: [id], onDelete: Cascade)
+
+  @@unique([empresaAId, empresaBId])
+  @@map("duplicatas_nao_duplicatas")
+}
+
+model Pessoa {
+  id        Int             @id @default(autoincrement())
+  empresaId Int             @map("empresa_id")
+  nome      String
+  tipo      TipoResponsavel
+  cpf       String
+  contato   String
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@index([empresaId])
   @@map("pessoas")
@@ -231,34 +247,34 @@ model ResumoPorteView {
 }
 
 model CampoEmpresa {
-  id           Int       @id @default(autoincrement())
-  nome         String    @unique
+  id           Int      @id @default(autoincrement())
+  nome         String   @unique
   label        String
-  tipo         String    @default("TEXTO")
-  builtin      Boolean   @default(false)
-  obrigatorio  Boolean   @default(false)
-  visivel      Boolean   @default(true)
-  ordem        Int       @default(999)
+  tipo         String   @default("TEXTO")
+  builtin      Boolean  @default(false)
+  obrigatorio  Boolean  @default(false)
+  visivel      Boolean  @default(true)
+  ordem        Int      @default(999)
   opcoes       String?
-  segmentoId   Int?      @map("segmento_id")
-  criadoEm     DateTime  @default(now()) @map("criado_em")
-  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+  segmentoId   Int?     @map("segmento_id")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
-  segmento          Segmento?            @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
-  valores           ValorCampoEmpresa[]
-  configSegmentos   SegmentoCampoConfig[]
+  segmento        Segmento?             @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
+  valores         ValorCampoEmpresa[]
+  configSegmentos SegmentoCampoConfig[]
 
   @@index([segmentoId])
   @@map("campos_empresa")
 }
 
 model SegmentoCampoConfig {
-  segmentoId Int          @map("segmento_id")
-  campoId    Int          @map("campo_id")
-  ativo      Boolean      @default(true)
+  segmentoId Int     @map("segmento_id")
+  campoId    Int     @map("campo_id")
+  ativo      Boolean @default(true)
 
-  segmento   Segmento     @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
-  campo      CampoEmpresa @relation(fields: [campoId], references: [id], onDelete: Cascade)
+  segmento Segmento     @relation(fields: [segmentoId], references: [id], onDelete: Cascade)
+  campo    CampoEmpresa @relation(fields: [campoId], references: [id], onDelete: Cascade)
 
   @@id([segmentoId, campoId])
   @@map("segmento_campo_config")
@@ -278,16 +294,16 @@ model ValorCampoEmpresa {
 }
 
 model LogAcesso {
-  id         Int      @id @default(autoincrement())
-  usuarioId  Int?     @map("usuario_id")
-  email      String?
-  rota       String
-  acao       String
-  ip         String?
-  userAgent  String?  @map("user_agent")
-  criadoEm   DateTime @default(now()) @map("criado_em")
+  id        Int      @id @default(autoincrement())
+  usuarioId Int?     @map("usuario_id")
+  email     String?
+  rota      String
+  acao      String
+  ip        String?
+  userAgent String?  @map("user_agent")
+  criadoEm  DateTime @default(now()) @map("criado_em")
 
-  usuario    Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@index([usuarioId])
   @@index([rota])

@@ -6,6 +6,7 @@ import {
   Briefcase,
   Building2,
   ChevronDown,
+  Copy,
   FileBarChart2,
   LayoutDashboard,
   Map,
@@ -45,6 +46,7 @@ export function Sidebar({ role, segmentos }: SidebarProps) {
   const [segmentosAberto, setSegmentosAberto] = useState(true);
 
   const canAdmin = hasRequiredRole(roleNormalizado, "ADMIN" as PapelUsuario);
+  const canAnalisar = hasRequiredRole(roleNormalizado, "ANALISTA" as PapelUsuario);
 
   const isActive = (href: string, exact = false): boolean => {
     if (exact) return pathname === href;
@@ -132,6 +134,15 @@ export function Sidebar({ role, segmentos }: SidebarProps) {
           <span className="flex-1 whitespace-nowrap">Relatórios</span>
           {isActive("/relatorios") && <div className="h-2 w-2 flex-shrink-0 rounded-full bg-white" />}
         </Link>
+
+        {/* Duplicatas */}
+        {canAnalisar && (
+          <Link href="/duplicatas" className={linkClass(isActive("/duplicatas"))}>
+            <Copy className="h-4 w-4 flex-shrink-0" />
+            <span className="flex-1 whitespace-nowrap">Duplicatas</span>
+            {isActive("/duplicatas") && <div className="h-2 w-2 flex-shrink-0 rounded-full bg-white" />}
+          </Link>
+        )}
 
         {/* Admin */}
         {canAdmin && (

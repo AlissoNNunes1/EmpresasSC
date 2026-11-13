@@ -6,6 +6,8 @@ import * as XLSX from "xlsx";
 import Fuse from "fuse.js";
 import { similaridadeTexto } from "./similaridade";
 import { encontrarPossiveisDuplicatas, type PossivelDuplicata, type RegistroComparavel } from "./duplicatas";
+import { criarBuscadoresDeEnderecos } from "../endereco/consulta";
+import { completarEndereco } from "../endereco/regras";
 
 type ImportMode = "UPSERT" | "CREATE_ONLY" | "UPDATE_ONLY";
 
@@ -34,6 +36,7 @@ type ImportResult = {
   erros: ImportError[];
   conflitos: MergeConflict[];
   possiveisDuplicatas: PossivelDuplicata[];
+  enderecosCompletados: number;
 };
 
 type MergeConflictField = {
@@ -1316,6 +1319,7 @@ export async function importarEmpresasInteligente(
     erros: [],
     conflitos: [],
     possiveisDuplicatas: [],
+    enderecosCompletados: 0,
   };
 
   if (options.usuarioRole === "VISUALIZADOR") {
@@ -1328,6 +1332,7 @@ export async function importarEmpresasInteligente(
   const categoriaCache = await buildCategoriaCache();
   const seenCnpjByLine = new Map<string, number>();
   const comparaveisDoArquivo: RegistroComparavel[] = [];
+  const buscadoresEnderecos = criarBuscadoresDeEnderecos();
 
   for (let i = 0; i < rows.length; i += 1) {
     const linha = i + 2;
@@ -1335,6 +1340,16 @@ export async function importarEmpresasInteligente(
     try {
       const rawRow = rows[i] as Record<string, unknown>;
       const mapped = mapRow(rawRow, camposCustomDefs);
+
+      // CEP e logradouro se completam mutuamente; só campos vazios são preenchidos.
+      const endereco = await completarEndereco(
+        { cep: mapped.cep ?? "", logradouro: mapped.logradouro ?? "", bairro: mapped.bairro ?? "" },
+        buscadoresEnderecos,
+      );
+      mapped.cep = endereco.cep;
+      mapped.logradouro = endereco.logradouro;
+      mapped.bairro = endereco.bairro;
+      if (endereco.origem) result.enderecosCompletados += 1;
 
       // Extrai valores de campos customizados presentes na linha
       const valoresCamposCustom: Array<{ campoId: number; valor: string }> = [];

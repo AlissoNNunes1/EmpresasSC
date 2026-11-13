@@ -4,30 +4,24 @@
  * Chamadas devem ser não-bloqueantes (fire-and-forget após salvar empresa).
  */
 
+import { buscarPorCep } from "./endereco/consulta";
+import { MUNICIPIO_PADRAO, normalizarCep } from "./endereco/regras";
+
 const NOMINATIM_UA = "EmpresasSC/1.0 (plataforma-municipal; contato@fumctur.gov.br)";
 
 type Coords = { lat: number; lng: number };
 
-/** Busca endereço pelo CEP via ViaCEP e devolve string de busca enriquecida */
+/** Busca endereço pelo CEP (ViaCEP/BrasilAPI) e devolve string de busca enriquecida */
 async function resolveAddressString(cep: string): Promise<string> {
-  const clean = cep.replace(/\D/g, "").padStart(8, "0");
-  if (clean.length !== 8) return `${clean}, Brasil`;
+  const clean = normalizarCep(cep);
+  if (!clean) return `${cep.replace(/\D/g, "")}, Brasil`;
 
-  try {
-    const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`, {
-      signal: AbortSignal.timeout(5000),
-      headers: { "User-Agent": NOMINATIM_UA },
-    });
-    if (res.ok) {
-      const data = await res.json() as Record<string, string>;
-      if (!data.erro) {
-        const parts = [data.logradouro, data.bairro, data.localidade, data.uf, "Brasil"].filter(Boolean);
-        if (parts.length >= 2) return parts.join(", ");
-      }
-    }
-  } catch {
-    // Fallback: usa só o CEP
-  }
+  const endereco = await buscarPorCep(clean);
+  const parts = endereco
+    ? [endereco.logradouro, endereco.bairro, endereco.municipio, endereco.uf, "Brasil"].filter(Boolean)
+    : [];
+  if (parts.length >= 2) return parts.join(", ");
+
   return `${clean}, Brasil`;
 }
 
@@ -69,7 +63,7 @@ export async function geocodeByCep(cep: string): Promise<Coords | null> {
  * Útil como fallback quando o CEP não produz resultado.
  */
 export async function geocodeByAddress(logradouro: string, bairro: string, municipio: string): Promise<Coords | null> {
-  const parts = [logradouro, bairro, municipio, "SC", "Brasil"].filter(Boolean);
+  const parts = [logradouro, bairro, municipio, MUNICIPIO_PADRAO.uf, "Brasil"].filter(Boolean);
   return nominatimSearch(parts.join(", "));
 }
 
@@ -86,7 +80,7 @@ export async function geocodeEmpresa(params: {
   bairro: string;
   municipio?: string;
 }): Promise<void> {
-  const { empresaId, cep, logradouro, bairro, municipio = "São Cristóvão" } = params;
+  const { empresaId, cep, logradouro, bairro, municipio = MUNICIPIO_PADRAO.nome } = params;
 
   try {
     let coords = await geocodeByCep(cep);
